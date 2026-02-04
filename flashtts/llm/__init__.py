@@ -5,25 +5,24 @@ from ..import_utils import (
     is_vllm_available,
     is_sglang_available,
     is_llama_cpp_available,
-    _LazyModule)
+    _LazyModule,
+)
 from typing import TYPE_CHECKING
 
 _import_structure = {
-    "base_llm": [
-        "BaseLLM"
-    ],
+    "base_llm": ["BaseLLM"],
     "torch_generator": ["TorchGenerator"],
     "init_llm": ["initialize_llm"],
 }
 
 if is_vllm_available():
-    _import_structure['vllm_generator'] = ['VllmGenerator']
+    _import_structure["vllm_generator"] = ["VllmGenerator"]
 
 if is_sglang_available():
-    _import_structure['sglang_generator'] = ['SglangGenerator']
+    _import_structure["sglang_generator"] = ["SglangGenerator"]
 
 if is_llama_cpp_available():
-    _import_structure['llama_cpp_generator'] = ['LlamaCppGenerator']
+    _import_structure["llama_cpp_generator"] = ["LlamaCppGenerator"]
 
 if TYPE_CHECKING:
     from .base_llm import BaseLLM

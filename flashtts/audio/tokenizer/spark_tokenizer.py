@@ -46,9 +46,7 @@ class SparkTokenizerModel(SparkBaseModel):
 
     @torch.no_grad()
     def forward(
-            self,
-            audio_features: torch.Tensor,
-            audio_clip: torch.Tensor
+        self, audio_features: torch.Tensor, audio_clip: torch.Tensor
     ) -> dict[str, torch.Tensor]:
         mel = self.mel_transformer(audio_clip).squeeze(1)
         z = self.encoder(audio_features.transpose(1, 2))
@@ -56,25 +54,26 @@ class SparkTokenizerModel(SparkBaseModel):
         global_tokens = self.speaker_encoder.tokenize(mel.transpose(1, 2))
         return {
             "semantic_tokens": semantic_tokens.detach(),
-            "global_tokens": global_tokens.detach()
+            "global_tokens": global_tokens.detach(),
         }
 
 
 class SparkTokenizer:
     def __init__(
-            self,
-            model_path: str,
-            device: Literal["cpu", "cuda", "mps"] | str = "cpu",
-            attn_implementation: Optional[Literal["sdpa", "flash_attention_2", "eager"]] = None,
-            batch_size: int = 32,
-            wait_timeout: float = 0.01,
+        self,
+        model_path: str,
+        device: Literal["cpu", "cuda", "mps"] | str = "cpu",
+        attn_implementation: Optional[
+            Literal["sdpa", "flash_attention_2", "eager"]
+        ] = None,
+        batch_size: int = 32,
+        wait_timeout: float = 0.01,
     ):
 
         self.device = torch.device(device)
         wav2vec_path = os.path.join(model_path, "wav2vec2-large-xlsr-53")
         self.wav2vec2 = Wav2Vec2Model.from_pretrained(
-            wav2vec_path,
-            attn_implementation=attn_implementation
+            wav2vec_path, attn_implementation=attn_implementation
         )
         self.wav2vec2.config.output_hidden_states = True
         self.wav2vec2.to(self.device)
@@ -84,14 +83,12 @@ class SparkTokenizer:
             os.path.join(model_path, "BiCodec")
         ).to(self.device)
 
-        self.processor = Wav2Vec2FeatureExtractor.from_pretrained(
-            wav2vec_path
-        )
+        self.processor = Wav2Vec2FeatureExtractor.from_pretrained(wav2vec_path)
 
         self._batch_processor = AsyncBatchEngine(
             processing_function=self.batch_tokenize_async,
             batch_size=batch_size,
-            wait_timeout=wait_timeout
+            wait_timeout=wait_timeout,
         )
         self.device_type = device
         self.dtype = get_dtype(self.device_type)
@@ -111,9 +108,9 @@ class SparkTokenizer:
         LATENT_HOP_LENGTH = 320
 
         ref_segment_length = (
-                int(SAMPLE_RATE * REF_SEGMENT_DURATION)
-                // LATENT_HOP_LENGTH
-                * LATENT_HOP_LENGTH
+            int(SAMPLE_RATE * REF_SEGMENT_DURATION)
+            // LATENT_HOP_LENGTH
+            * LATENT_HOP_LENGTH
         )
         wav_length = len(wav)
 
@@ -131,7 +128,9 @@ class SparkTokenizer:
 
         if sr != 16000:
             waveform = soxr.resample(waveform, sr, 16000, quality="VHQ")
-            logger.warning("The input reference audio sampling rate isn’t 16,000 Hz and has been automatically resampled.")
+            logger.warning(
+                "The input reference audio sampling rate isn’t 16,000 Hz and has been automatically resampled."
+            )
 
         wav_len = len(waveform)
         waveform = np.array(waveform, dtype=np.float32)
@@ -148,19 +147,17 @@ class SparkTokenizer:
     @torch.no_grad()
     def extract_features(self, wav_list: list[np.ndarray]) -> torch.Tensor:
         inputs = self.processor(
-            wav_list,
-            sampling_rate=16000,
-            return_tensors="pt",
-            padding=True
+            wav_list, sampling_rate=16000, return_tensors="pt", padding=True
         ).to(self.device)
         with torch.amp.autocast(self.device_type, dtype=self.dtype):
             output = self.wav2vec2(
-                inputs['input_values'],
-                attention_mask=inputs['attention_mask']
+                inputs["input_values"], attention_mask=inputs["attention_mask"]
             )
             features = (
-                               output.hidden_states[11] + output.hidden_states[14] + output.hidden_states[16]
-                       ) / 3
+                output.hidden_states[11]
+                + output.hidden_states[14]
+                + output.hidden_states[16]
+            ) / 3
         return features.detach()
 
     @torch.no_grad()
@@ -190,15 +187,15 @@ class SparkTokenizer:
         # Prepare responses
         responses = []
         for i in range(len(audios)):
-            responses.append({
-                "global_tokens": tokenized["global_tokens"][i],
-                "semantic_tokens": tokenized["semantic_tokens"][i]
-            })
+            responses.append(
+                {
+                    "global_tokens": tokenized["global_tokens"][i],
+                    "semantic_tokens": tokenized["semantic_tokens"][i],
+                }
+            )
 
         return responses
 
     async def tokenize_async(self, audio) -> dict[str, torch.Tensor]:
-        output = await self._batch_processor.add_request(
-            single_input=audio
-        )
+        output = await self._batch_processor.add_request(single_input=audio)
         return output.get("feature")

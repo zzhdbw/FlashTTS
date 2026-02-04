@@ -35,11 +35,14 @@ class SinusPositionEmbedding(nn.Module):
         emb = torch.cat((emb.sin(), emb.cos()), dim=-1)
         return emb
 
+
 class TimestepEmbedding(nn.Module):
     def __init__(self, dim, freq_embed_dim=256):
         super().__init__()
         self.time_embed = SinusPositionEmbedding(freq_embed_dim)
-        self.time_mlp = nn.Sequential(nn.Linear(freq_embed_dim, dim), nn.SiLU(), nn.Linear(dim, dim))
+        self.time_mlp = nn.Sequential(
+            nn.Linear(freq_embed_dim, dim), nn.SiLU(), nn.Linear(dim, dim)
+        )
 
     def forward(self, timestep):  # noqa: F821
         time_hidden = self.time_embed(timestep)

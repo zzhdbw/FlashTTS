@@ -36,7 +36,11 @@ def find_ref_files(role_path: str, suffix: str = ".wav"):
     return
 
 
-async def load_roles(async_engine: AutoEngine, role_dir: Optional[str] = None, db_path: Optional[str] = None):
+async def load_roles(
+    async_engine: AutoEngine,
+    role_dir: Optional[str] = None,
+    db_path: Optional[str] = None,
+):
     if db_path is not None and os.path.exists(db_path):
         logger.info(f"Loading database from {db_path}")
         await async_engine.load_speakers(db_path)
@@ -86,7 +90,9 @@ async def load_roles(async_engine: AutoEngine, role_dir: Optional[str] = None, d
                 reference_text=role_text,
             )
     if len(async_engine.list_speakers()) > 0:
-        logger.info(f"Finished loading roles: {', '.join(async_engine.list_speakers())}")
+        logger.info(
+            f"Finished loading roles: {', '.join(async_engine.list_speakers())}"
+        )
 
 
 async def warmup_engine(async_engine: AutoEngine):
@@ -136,7 +142,7 @@ def build_app(args) -> FastAPI:
         app.state.state_info = StateInfo(
             model_name=args.model_name or engine.engine_name,
             db_path=args.db_path,
-            fix_voice=args.fix_voice
+            fix_voice=args.fix_voice,
         )
         yield
 
@@ -198,12 +204,12 @@ class ServerCommand(BaseCLICommand):
             "--api_key",
             type=str,
             default=None,
-            help="API key for request authentication"
+            help="API key for request authentication",
         )
         serve_parser.add_argument(
             "--fix_voice",
             action="store_true",
-            help="Fixes the female and male timbres in the spark-tts model, ensuring they remain unchanged."
+            help="Fixes the female and male timbres in the spark-tts model, ensuring they remain unchanged.",
         )
 
         serve_parser.add_argument(

@@ -13,13 +13,13 @@ __all__ = ["LlamaCppGenerator"]
 
 class LlamaCppGenerator(BaseLLM):
     def __init__(
-            self,
-            model_path: str,
-            max_length: int = 32768,
-            device: str = "cpu",
-            stop_tokens: Optional[list[str]] = None,
-            stop_token_ids: Optional[List[int]] = None,
-            **kwargs
+        self,
+        model_path: str,
+        max_length: int = 32768,
+        device: str = "cpu",
+        stop_tokens: Optional[list[str]] = None,
+        stop_token_ids: Optional[List[int]] = None,
+        **kwargs,
     ):
         from llama_cpp import Llama
 
@@ -33,18 +33,17 @@ class LlamaCppGenerator(BaseLLM):
         else:
             if len(model_files) > 1:
                 logger.warning(
-                    f"Multiple gguf files found in the model directory, using the first one: {model_files[0]}")
+                    f"Multiple gguf files found in the model directory, using the first one: {model_files[0]}"
+                )
             model_file = os.path.join(model_path, model_files[0])
 
         runtime_kwargs = dict(
             model_path=model_file,
             n_ctx=max_length,
-            n_gpu_layers=0 if device == 'cpu' else -1,
-            **kwargs
+            n_gpu_layers=0 if device == "cpu" else -1,
+            **kwargs,
         )
-        self.model = Llama(
-            **runtime_kwargs
-        )
+        self.model = Llama(**runtime_kwargs)
         # 不使用llama cpp 的 tokenizer
         super(LlamaCppGenerator, self).__init__(
             tokenizer=model_path,
@@ -54,24 +53,24 @@ class LlamaCppGenerator(BaseLLM):
         )
 
     async def _generate(
-            self,
-            prompt_ids: list[int],
-            max_tokens: int = 1024,
-            temperature: float = 0.9,
-            top_p: float = 0.9,
-            top_k: int = 50,
-            repetition_penalty: float = 1.0,
-            skip_special_tokens: bool = True,
-            **kwargs
+        self,
+        prompt_ids: list[int],
+        max_tokens: int = 1024,
+        temperature: float = 0.9,
+        top_p: float = 0.9,
+        top_k: int = 50,
+        repetition_penalty: float = 1.0,
+        skip_special_tokens: bool = True,
+        **kwargs,
     ) -> GenerationResponse:
         completion_tokens = []
         for token in self.model.generate(
-                prompt_ids,
-                top_k=top_k,
-                top_p=top_p,
-                temp=temperature,
-                repeat_penalty=repetition_penalty,
-                **kwargs
+            prompt_ids,
+            top_k=top_k,
+            top_p=top_p,
+            temp=temperature,
+            repeat_penalty=repetition_penalty,
+            **kwargs,
         ):
             if token in self.stop_token_ids:
                 break
@@ -82,31 +81,30 @@ class LlamaCppGenerator(BaseLLM):
 
         # Decode the generated tokens into text
         output = self.tokenizer.decode(
-            completion_tokens,
-            skip_special_tokens=skip_special_tokens
+            completion_tokens, skip_special_tokens=skip_special_tokens
         )
         return GenerationResponse(text=output, token_ids=completion_tokens)
 
     async def _stream_generate(
-            self,
-            prompt_ids: list[int],
-            max_tokens: int = 1024,
-            temperature: float = 0.9,
-            top_p: float = 0.9,
-            top_k: int = 50,
-            repetition_penalty: float = 1.0,
-            skip_special_tokens: bool = True,
-            **kwargs
+        self,
+        prompt_ids: list[int],
+        max_tokens: int = 1024,
+        temperature: float = 0.9,
+        top_p: float = 0.9,
+        top_k: int = 50,
+        repetition_penalty: float = 1.0,
+        skip_special_tokens: bool = True,
+        **kwargs,
     ) -> AsyncIterator[GenerationResponse]:
         completion_tokens = []
         previous_texts = ""
         for token in self.model.generate(
-                prompt_ids,
-                top_k=top_k,
-                top_p=top_p,
-                temp=temperature,
-                repeat_penalty=repetition_penalty,
-                **kwargs
+            prompt_ids,
+            top_k=top_k,
+            top_p=top_p,
+            temp=temperature,
+            repeat_penalty=repetition_penalty,
+            **kwargs,
         ):
             if token in self.stop_token_ids:
                 break
@@ -114,9 +112,11 @@ class LlamaCppGenerator(BaseLLM):
                 break
             completion_tokens.append(token)
 
-            text = self.tokenizer.decode(completion_tokens, skip_special_tokens=skip_special_tokens)
+            text = self.tokenizer.decode(
+                completion_tokens, skip_special_tokens=skip_special_tokens
+            )
 
-            delta_text = text[len(previous_texts):]
+            delta_text = text[len(previous_texts) :]
             previous_texts = text
 
             yield GenerationResponse(

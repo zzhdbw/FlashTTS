@@ -41,9 +41,9 @@ def reshape_for_broadcast(freqs_cis: torch.Tensor, x: torch.Tensor):
 
 
 def apply_rotary_emb(
-        xq: torch.Tensor,
-        xk: torch.Tensor,
-        freqs_cis: torch.Tensor,
+    xq: torch.Tensor,
+    xk: torch.Tensor,
+    freqs_cis: torch.Tensor,
 ) -> Tuple[torch.Tensor, torch.Tensor]:
     xq_ = torch.view_as_complex(xq.float().reshape(*xq.shape[:-1], -1, 2))
     xk_ = torch.view_as_complex(xk.float().reshape(*xk.shape[:-1], -1, 2))
@@ -62,7 +62,9 @@ class AdaLNZero(nn.Module):
 
     def forward(self, x, emb=None):
         emb = self.linear(self.silu(emb))
-        shift_msa, scale_msa, gate_msa, shift_mlp, scale_mlp, gate_mlp = torch.chunk(emb, 6, dim=1)
+        shift_msa, scale_msa, gate_msa, shift_mlp, scale_mlp, gate_mlp = torch.chunk(
+            emb, 6, dim=1
+        )
         x = self.norm(x) * (1 + scale_msa[:, None]) + shift_msa[:, None]
         return x, gate_msa, shift_mlp, scale_mlp, gate_mlp
 
@@ -109,11 +111,11 @@ class Attention(nn.Module):
         )
 
     def forward(
-            self,
-            x: torch.Tensor,
-            start_pos: int,
-            freqs_cis: torch.Tensor,
-            mask: Optional[torch.Tensor],
+        self,
+        x: torch.Tensor,
+        start_pos: int,
+        freqs_cis: torch.Tensor,
+        mask: Optional[torch.Tensor],
     ):
         bsz, seqlen, _ = x.shape
         xq, xk, xv = self.wq(x), self.wk(x), self.wv(x)
@@ -126,30 +128,28 @@ class Attention(nn.Module):
         keys = xk.transpose(1, 2)  # (bs, n_local_heads, cache_len + seqlen, head_dim)
         values = xv.transpose(1, 2)  # (bs, n_local_heads, cache_len + seqlen, head_dim)
 
-        output = F.scaled_dot_product_attention(xq, keys, values, mask[:, None, None, :], is_causal=False)
+        output = F.scaled_dot_product_attention(
+            xq, keys, values, mask[:, None, None, :], is_causal=False
+        )
         output = output.transpose(1, 2).contiguous().view(bsz, seqlen, -1)
         return self.wo(output)
 
 
 class FeedForward(nn.Module):
     def __init__(
-            self,
-            dim: int,
-            hidden_dim: int,
-            multiple_of: int,
-            ffn_dim_multiplier: Optional[float],
+        self,
+        dim: int,
+        hidden_dim: int,
+        multiple_of: int,
+        ffn_dim_multiplier: Optional[float],
     ):
         super().__init__()
         if ffn_dim_multiplier is not None:
             hidden_dim = int(ffn_dim_multiplier * hidden_dim)
         hidden_dim = multiple_of * ((hidden_dim + multiple_of - 1) // multiple_of)
 
-        self.w1 = nn.Linear(
-            dim, hidden_dim
-        )
-        self.w2 = nn.Linear(
-            hidden_dim, dim
-        )
+        self.w1 = nn.Linear(dim, hidden_dim)
+        self.w2 = nn.Linear(hidden_dim, dim)
 
     def forward(self, x):
         return self.w2(F.silu(self.w1(x)))
@@ -172,12 +172,12 @@ class TransformerBlock(nn.Module):
         self.ffn_norm = nn.LayerNorm(encoder_dim, elementwise_affine=False, eps=1e-6)
 
     def forward(
-            self,
-            x: torch.Tensor,
-            t: torch.Tensor,
-            start_pos: int,
-            freqs_cis: torch.Tensor,
-            mask: Optional[torch.Tensor],
+        self,
+        x: torch.Tensor,
+        t: torch.Tensor,
+        start_pos: int,
+        freqs_cis: torch.Tensor,
+        mask: Optional[torch.Tensor],
     ):
         """
         Perform a forward pass through the TransformerBlock.
@@ -214,19 +214,23 @@ class Transformer(nn.Module):
         # Decoder
         self.layers = torch.nn.ModuleList()
         for _ in range(encoder_n_layers):
-            self.layers.append(TransformerBlock(encoder_dim, encoder_n_heads, max_seq_len))
+            self.layers.append(
+                TransformerBlock(encoder_dim, encoder_n_heads, max_seq_len)
+            )
 
         self.norm = AdaLNZero_Out(encoder_dim)
         self.out_proj = nn.Linear(encoder_dim, encoder_dim)
 
         # Rope embedding
-        freqs_cis = precompute_freqs_cis(
-            encoder_dim // encoder_n_heads, max_seq_len
+        freqs_cis = precompute_freqs_cis(encoder_dim // encoder_n_heads, max_seq_len)
+        self.register_buffer(
+            "freqs_cis", torch.view_as_real(freqs_cis), persistent=False
         )
-        self.register_buffer("freqs_cis", torch.view_as_real(freqs_cis), persistent=False)
 
     def forward(self, x, t, attn_mask, start_pos=0):
-        freqs_cis = torch.view_as_complex(self.freqs_cis.float())[start_pos: start_pos + x.size(1)]
+        freqs_cis = torch.view_as_complex(self.freqs_cis.float())[
+            start_pos : start_pos + x.size(1)
+        ]
         for i, layer in enumerate(self.layers):
             x = layer(x, t, start_pos, freqs_cis, attn_mask)
         x = self.norm(x, t)

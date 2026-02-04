@@ -36,18 +36,26 @@ class Upsample(nn.Module):
     def __init__(self, mult, r):
         super(Upsample, self).__init__()
         self.r = r
-        self.upsample = nn.Sequential(nn.Upsample(mode="nearest", scale_factor=r),
-                                      nn.LeakyReLU(0.2),
-                                      nn.ReflectionPad1d(3),
-                                      nn.utils.weight_norm(nn.Conv1d(mult, mult // 2, kernel_size=7, stride=1))
-                                      )
+        self.upsample = nn.Sequential(
+            nn.Upsample(mode="nearest", scale_factor=r),
+            nn.LeakyReLU(0.2),
+            nn.ReflectionPad1d(3),
+            nn.utils.weight_norm(nn.Conv1d(mult, mult // 2, kernel_size=7, stride=1)),
+        )
         r_kernel = r if r >= 5 else 5
-        self.trans_upsample = nn.Sequential(nn.LeakyReLU(0.2),
-                                            nn.utils.weight_norm(nn.ConvTranspose1d(mult, mult // 2,
-                                                                                    kernel_size=r_kernel * 2, stride=r,
-                                                                                    padding=r_kernel - r // 2,
-                                                                                    output_padding=r % 2)
-                                                                 ))
+        self.trans_upsample = nn.Sequential(
+            nn.LeakyReLU(0.2),
+            nn.utils.weight_norm(
+                nn.ConvTranspose1d(
+                    mult,
+                    mult // 2,
+                    kernel_size=r_kernel * 2,
+                    stride=r,
+                    padding=r_kernel - r // 2,
+                    output_padding=r % 2,
+                )
+            ),
+        )
 
     def forward(self, x):
         x = torch.sin(x) + x
@@ -61,11 +69,18 @@ class Downsample(nn.Module):
         super(Downsample, self).__init__()
         self.r = r
         r_kernel = r if r >= 5 else 5
-        self.trans_downsample = nn.Sequential(nn.LeakyReLU(0.2),
-                                              nn.utils.weight_norm(nn.Conv1d(mult, mult * 2,
-                                                                             kernel_size=r_kernel * 2, stride=r,
-                                                                             padding=r_kernel - r // 2)
-                                                                   ))
+        self.trans_downsample = nn.Sequential(
+            nn.LeakyReLU(0.2),
+            nn.utils.weight_norm(
+                nn.Conv1d(
+                    mult,
+                    mult * 2,
+                    kernel_size=r_kernel * 2,
+                    stride=r,
+                    padding=r_kernel - r // 2,
+                )
+            ),
+        )
 
     def forward(self, x):
         out = self.trans_downsample(x)
@@ -98,21 +113,23 @@ def WNConvTranspose1d(*args, **kwargs):
 
 class Audio2Mel(nn.Module):
     def __init__(
-            self,
-            hop_length=300,
-            sampling_rate=24000,
-            n_mel_channels=80,
-            mel_fmin=0.,
-            mel_fmax=None,
-            frame_size=0.05,
-            device='cpu'
+        self,
+        hop_length=300,
+        sampling_rate=24000,
+        n_mel_channels=80,
+        mel_fmin=0.0,
+        mel_fmax=None,
+        frame_size=0.05,
+        device="cpu",
     ):
         super().__init__()
         ##############################################
         # FFT Parameters                              #
         ##############################################
 
-        self.n_fft = int(np.power(2., np.ceil(np.log(sampling_rate * frame_size) / np.log(2))))
+        self.n_fft = int(
+            np.power(2.0, np.ceil(np.log(sampling_rate * frame_size) / np.log(2)))
+        )
         window = torch.hann_window(int(sampling_rate * frame_size)).float()
         mel_basis = librosa_mel_fn(
             sampling_rate, self.n_fft, n_mel_channels, mel_fmin, mel_fmax
@@ -136,12 +153,12 @@ class Audio2Mel(nn.Module):
             center=True,
         )
         real_part, imag_part = fft.unbind(-1)
-        magnitude = torch.sqrt(torch.clamp(real_part ** 2 + imag_part ** 2, min=1e-5))
+        magnitude = torch.sqrt(torch.clamp(real_part**2 + imag_part**2, min=1e-5))
         mel_output = torch.matmul(self.mel_basis, magnitude)
 
         log_mel_spec = 20 * torch.log10(torch.clamp(mel_output, min=1e-5)) - 20
-        norm_mel = (log_mel_spec + 115.) / 115.
-        mel_comp = torch.clamp(norm_mel * 8. - 4., -4., 4.)
+        norm_mel = (log_mel_spec + 115.0) / 115.0
+        mel_comp = torch.clamp(norm_mel * 8.0 - 4.0, -4.0, 4.0)
 
         return mel_comp
 
@@ -165,33 +182,85 @@ class ResnetBlock(nn.Module):
         return self.shortcut(x) + self.block(x)
 
 
-'''
+"""
 参照hifigan（https://arxiv.org/pdf/2010.05646.pdf）v2结构
 多尺度主要是kernel_size不同，3组并行卷积模块，每个卷积模块内部采用不同的串行dilation size，且中间交叉正常无dilation卷积层
-'''
+"""
 
 
 class ResBlockMRFV2(torch.nn.Module):
     def __init__(self, channels, kernel_size=3, dilation=(1, 3, 5)):
         super(ResBlockMRFV2, self).__init__()
-        self.convs1 = nn.ModuleList([
-            weight_norm(Conv1d(channels, channels, kernel_size, 1, dilation=dilation[0],
-                               padding=get_padding(kernel_size, dilation[0]))),
-            weight_norm(Conv1d(channels, channels, kernel_size, 1, dilation=dilation[1],
-                               padding=get_padding(kernel_size, dilation[1]))),
-            weight_norm(Conv1d(channels, channels, kernel_size, 1, dilation=dilation[2],
-                               padding=get_padding(kernel_size, dilation[2])))
-        ])
+        self.convs1 = nn.ModuleList(
+            [
+                weight_norm(
+                    Conv1d(
+                        channels,
+                        channels,
+                        kernel_size,
+                        1,
+                        dilation=dilation[0],
+                        padding=get_padding(kernel_size, dilation[0]),
+                    )
+                ),
+                weight_norm(
+                    Conv1d(
+                        channels,
+                        channels,
+                        kernel_size,
+                        1,
+                        dilation=dilation[1],
+                        padding=get_padding(kernel_size, dilation[1]),
+                    )
+                ),
+                weight_norm(
+                    Conv1d(
+                        channels,
+                        channels,
+                        kernel_size,
+                        1,
+                        dilation=dilation[2],
+                        padding=get_padding(kernel_size, dilation[2]),
+                    )
+                ),
+            ]
+        )
         self.convs1.apply(init_weights)
 
-        self.convs2 = nn.ModuleList([
-            weight_norm(Conv1d(channels, channels, kernel_size, 1, dilation=1,
-                               padding=get_padding(kernel_size, 1))),
-            weight_norm(Conv1d(channels, channels, kernel_size, 1, dilation=1,
-                               padding=get_padding(kernel_size, 1))),
-            weight_norm(Conv1d(channels, channels, kernel_size, 1, dilation=1,
-                               padding=get_padding(kernel_size, 1)))
-        ])
+        self.convs2 = nn.ModuleList(
+            [
+                weight_norm(
+                    Conv1d(
+                        channels,
+                        channels,
+                        kernel_size,
+                        1,
+                        dilation=1,
+                        padding=get_padding(kernel_size, 1),
+                    )
+                ),
+                weight_norm(
+                    Conv1d(
+                        channels,
+                        channels,
+                        kernel_size,
+                        1,
+                        dilation=1,
+                        padding=get_padding(kernel_size, 1),
+                    )
+                ),
+                weight_norm(
+                    Conv1d(
+                        channels,
+                        channels,
+                        kernel_size,
+                        1,
+                        dilation=1,
+                        padding=get_padding(kernel_size, 1),
+                    )
+                ),
+            ]
+        )
         self.convs2.apply(init_weights)
 
     def forward(self, x):
@@ -226,7 +295,16 @@ class ResBlockMRFV2Inter(torch.nn.Module):
 
 
 class Generator(nn.Module):
-    def __init__(self, input_size_, ngf, frame_shift, use_tanh, num_band, ratios=[5, 5, 4, 3], onnx_export=False):
+    def __init__(
+        self,
+        input_size_,
+        ngf,
+        frame_shift,
+        use_tanh,
+        num_band,
+        ratios=[5, 5, 4, 3],
+        onnx_export=False,
+    ):
         super().__init__()
         self.hop_length = frame_shift
         self.use_tanh = use_tanh

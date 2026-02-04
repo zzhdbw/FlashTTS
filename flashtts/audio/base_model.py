@@ -15,7 +15,7 @@ from safetensors.torch import load_file
 class SparkBaseModel(nn.Module):
     @classmethod
     def from_pretrained(cls, model_path: str):
-        config = load_config(os.path.join(model_path, "config.yaml"))['audio_tokenizer']
+        config = load_config(os.path.join(model_path, "config.yaml"))["audio_tokenizer"]
         model = cls(config)
         state_dict = load_file(os.path.join(model_path, "model.safetensors"))
         model.load_state_dict(state_dict, strict=False)
@@ -48,7 +48,9 @@ class SnacBaseModel(nn.Module):
         model = cls.from_config(os.path.join(model_path, "config.json"))
         state_dict = torch.load(
             os.path.join(model_path, "pytorch_model.bin"),
-            map_location="cpu", weights_only=True)
+            map_location="cpu",
+            weights_only=True,
+        )
         model.load_state_dict(state_dict, strict=False)
         model.eval()
         return model
@@ -71,10 +73,14 @@ class MegaBaseModel(nn.Module):
 
         checkpoint = torch.load(ckpt_path, map_location="cpu", weights_only=True)
         state_dict_all = {
-            k.replace('module.', '').replace('_orig_mod.', ''): v for k, v in checkpoint["state_dict"].items()
+            k.replace("module.", "").replace("_orig_mod.", ""): v
+            for k, v in checkpoint["state_dict"].items()
         }
         state_dict = state_dict_all[cls.CKPT_NAME]
-        state_dict = {k.replace('module.', '').replace('_orig_mod.', ''): v for k, v in state_dict.items()}
+        state_dict = {
+            k.replace("module.", "").replace("_orig_mod.", ""): v
+            for k, v in state_dict.items()
+        }
 
         if config_file is not None:
             with open(config_file) as f:

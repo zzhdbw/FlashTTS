@@ -21,7 +21,12 @@ import torch
 from torch import nn
 from torch.nn import Parameter, Linear
 from .layers import LayerNorm, Embedding
-from .seq_utils import get_incremental_state, set_incremental_state, softmax, make_positions
+from .seq_utils import (
+    get_incremental_state,
+    set_incremental_state,
+    softmax,
+    make_positions,
+)
 import torch.nn.functional as F
 
 DEFAULT_MAX_SOURCE_POSITIONS = 3000
@@ -43,7 +48,7 @@ class SinusoidalPositionalEmbedding(nn.Module):
             embedding_dim,
             padding_idx,
         )
-        self.register_buffer('_float_tensor', torch.FloatTensor(1))
+        self.register_buffer("_float_tensor", torch.FloatTensor(1))
 
     @staticmethod
     def get_embedding(num_embeddings, embedding_dim, padding_idx=None):
@@ -55,8 +60,12 @@ class SinusoidalPositionalEmbedding(nn.Module):
         half_dim = embedding_dim // 2
         emb = math.log(10000) / (half_dim - 1)
         emb = torch.exp(torch.arange(half_dim, dtype=torch.float) * -emb)
-        emb = torch.arange(num_embeddings, dtype=torch.float).unsqueeze(1) * emb.unsqueeze(0)
-        emb = torch.cat([torch.sin(emb), torch.cos(emb)], dim=1).view(num_embeddings, -1)
+        emb = torch.arange(num_embeddings, dtype=torch.float).unsqueeze(
+            1
+        ) * emb.unsqueeze(0)
+        emb = torch.cat([torch.sin(emb), torch.cos(emb)], dim=1).view(
+            num_embeddings, -1
+        )
         if embedding_dim % 2 == 1:
             # zero pad
             emb = torch.cat([emb, torch.zeros(num_embeddings, 1)], dim=1)
@@ -64,7 +73,9 @@ class SinusoidalPositionalEmbedding(nn.Module):
             emb[padding_idx, :] = 0
         return emb
 
-    def forward(self, input, incremental_state=None, timestep=None, positions=None, **kwargs):
+    def forward(
+        self, input, incremental_state=None, timestep=None, positions=None, **kwargs
+    ):
         """Input is expected to be of size [bsz x seqlen]."""
         bsz, seq_len = input.shape[:2]
         max_pos = self.padding_idx + 1 + seq_len
@@ -82,8 +93,14 @@ class SinusoidalPositionalEmbedding(nn.Module):
             pos = timestep.view(-1)[0] + 1 if timestep is not None else seq_len
             return self.weights[self.padding_idx + pos, :].expand(bsz, 1, -1)
 
-        positions = make_positions(input, self.padding_idx) if positions is None else positions
-        return self.weights.index_select(0, positions.view(-1)).view(bsz, seq_len, -1).detach()
+        positions = (
+            make_positions(input, self.padding_idx) if positions is None else positions
+        )
+        return (
+            self.weights.index_select(0, positions.view(-1))
+            .view(bsz, seq_len, -1)
+            .detach()
+        )
 
     def max_positions(self):
         """Maximum number of supported positions."""
@@ -91,18 +108,32 @@ class SinusoidalPositionalEmbedding(nn.Module):
 
 
 class TransformerFFNLayer(nn.Module):
-    def __init__(self, hidden_size, filter_size, padding="SAME", kernel_size=1, dropout=0., act='gelu', bias=True):
+    def __init__(
+        self,
+        hidden_size,
+        filter_size,
+        padding="SAME",
+        kernel_size=1,
+        dropout=0.0,
+        act="gelu",
+        bias=True,
+    ):
         super().__init__()
         self.kernel_size = kernel_size
         self.dropout = dropout
         self.act = act
-        if padding == 'SAME':
-            self.ffn_1 = nn.Conv1d(hidden_size, filter_size, kernel_size,
-                                   padding=kernel_size // 2, bias=bias)
-        elif padding == 'LEFT':
+        if padding == "SAME":
+            self.ffn_1 = nn.Conv1d(
+                hidden_size,
+                filter_size,
+                kernel_size,
+                padding=kernel_size // 2,
+                bias=bias,
+            )
+        elif padding == "LEFT":
             self.ffn_1 = nn.Sequential(
                 nn.ConstantPad1d((kernel_size - 1, 0), 0.0),
-                nn.Conv1d(hidden_size, filter_size, kernel_size, bias=bias)
+                nn.Conv1d(hidden_size, filter_size, kernel_size, bias=bias),
             )
         self.ffn_2 = Linear(filter_size, hidden_size, bias=bias)
 
@@ -110,53 +141,66 @@ class TransformerFFNLayer(nn.Module):
         # x: T x B x C
         if incremental_state is not None:
             saved_state = self._get_input_buffer(incremental_state)
-            if 'prev_input' in saved_state:
-                prev_input = saved_state['prev_input']
+            if "prev_input" in saved_state:
+                prev_input = saved_state["prev_input"]
                 x = torch.cat((prev_input, x), dim=0)
-            x = x[-self.kernel_size:]
-            saved_state['prev_input'] = x
+            x = x[-self.kernel_size :]
+            saved_state["prev_input"] = x
             self._set_input_buffer(incremental_state, saved_state)
 
         x = self.ffn_1(x.permute(1, 2, 0)).permute(2, 0, 1)
-        x = x * self.kernel_size ** -0.5
+        x = x * self.kernel_size**-0.5
 
         if incremental_state is not None:
             x = x[-1:]
-        if self.act == 'gelu':
+        if self.act == "gelu":
             x = F.gelu(x)
-        if self.act == 'relu':
+        if self.act == "relu":
             x = F.relu(x)
         x = F.dropout(x, self.dropout, training=self.training)
         x = self.ffn_2(x)
         return x
 
     def _get_input_buffer(self, incremental_state):
-        return get_incremental_state(
-            self,
-            incremental_state,
-            'f',
-        ) or {}
+        return (
+            get_incremental_state(
+                self,
+                incremental_state,
+                "f",
+            )
+            or {}
+        )
 
     def _set_input_buffer(self, incremental_state, buffer):
         set_incremental_state(
             self,
             incremental_state,
-            'f',
+            "f",
             buffer,
         )
 
     def clear_buffer(self, incremental_state):
         if incremental_state is not None:
             saved_state = self._get_input_buffer(incremental_state)
-            if 'prev_input' in saved_state:
-                del saved_state['prev_input']
+            if "prev_input" in saved_state:
+                del saved_state["prev_input"]
             self._set_input_buffer(incremental_state, saved_state)
 
 
 class MultiheadAttention(nn.Module):
-    def __init__(self, embed_dim, num_heads, kdim=None, vdim=None, dropout=0., bias=True,
-                 add_bias_kv=False, add_zero_attn=False, self_attention=False,
-                 encoder_decoder_attention=False):
+    def __init__(
+        self,
+        embed_dim,
+        num_heads,
+        kdim=None,
+        vdim=None,
+        dropout=0.0,
+        bias=True,
+        add_bias_kv=False,
+        add_zero_attn=False,
+        self_attention=False,
+        encoder_decoder_attention=False,
+    ):
         super().__init__()
         self.embed_dim = embed_dim
         self.kdim = kdim if kdim is not None else embed_dim
@@ -166,14 +210,17 @@ class MultiheadAttention(nn.Module):
         self.num_heads = num_heads
         self.dropout = dropout
         self.head_dim = embed_dim // num_heads
-        assert self.head_dim * num_heads == self.embed_dim, "embed_dim must be divisible by num_heads"
-        self.scaling = self.head_dim ** -0.5
+        assert (
+            self.head_dim * num_heads == self.embed_dim
+        ), "embed_dim must be divisible by num_heads"
+        self.scaling = self.head_dim**-0.5
 
         self.self_attention = self_attention
         self.encoder_decoder_attention = encoder_decoder_attention
 
-        assert not self.self_attention or self.qkv_same_dim, 'Self-attention requires query, key and ' \
-                                                             'value to be of the same size'
+        assert not self.self_attention or self.qkv_same_dim, (
+            "Self-attention requires query, key and " "value to be of the same size"
+        )
 
         if self.qkv_same_dim:
             self.in_proj_weight = Parameter(torch.Tensor(3 * embed_dim, embed_dim))
@@ -185,7 +232,7 @@ class MultiheadAttention(nn.Module):
         if bias:
             self.in_proj_bias = Parameter(torch.Tensor(3 * embed_dim))
         else:
-            self.register_parameter('in_proj_bias', None)
+            self.register_parameter("in_proj_bias", None)
 
         self.out_proj = nn.Linear(embed_dim, embed_dim, bias=bias)
 
@@ -212,25 +259,27 @@ class MultiheadAttention(nn.Module):
 
         nn.init.xavier_uniform_(self.out_proj.weight)
         if self.in_proj_bias is not None:
-            nn.init.constant_(self.in_proj_bias, 0.)
-            nn.init.constant_(self.out_proj.bias, 0.)
+            nn.init.constant_(self.in_proj_bias, 0.0)
+            nn.init.constant_(self.out_proj.bias, 0.0)
         if self.bias_k is not None:
             nn.init.xavier_normal_(self.bias_k)
         if self.bias_v is not None:
             nn.init.xavier_normal_(self.bias_v)
 
     def forward(
-            self,
-            query, key, value,
-            key_padding_mask=None,
-            incremental_state=None,
-            need_weights=True,
-            static_kv=False,
-            attn_mask=None,
-            before_softmax=False,
-            need_head_weights=False,
-            enc_dec_attn_constraint_mask=None,
-            reset_attn_weight=None
+        self,
+        query,
+        key,
+        value,
+        key_padding_mask=None,
+        incremental_state=None,
+        need_weights=True,
+        static_kv=False,
+        attn_mask=None,
+        before_softmax=False,
+        need_head_weights=False,
+        enc_dec_attn_constraint_mask=None,
+        reset_attn_weight=None,
     ):
         """Input shape: Time x Batch x Channel
 
@@ -256,32 +305,60 @@ class MultiheadAttention(nn.Module):
         assert embed_dim == self.embed_dim
         assert list(query.size()) == [tgt_len, bsz, embed_dim]
 
-        if self.enable_torch_version and incremental_state is None and not static_kv and reset_attn_weight is None:
+        if (
+            self.enable_torch_version
+            and incremental_state is None
+            and not static_kv
+            and reset_attn_weight is None
+        ):
             if self.qkv_same_dim:
-                return F.multi_head_attention_forward(query, key, value,
-                                                      self.embed_dim, self.num_heads,
-                                                      self.in_proj_weight,
-                                                      self.in_proj_bias, self.bias_k, self.bias_v,
-                                                      self.add_zero_attn, self.dropout,
-                                                      self.out_proj.weight, self.out_proj.bias,
-                                                      self.training, key_padding_mask, need_weights,
-                                                      attn_mask)
+                return F.multi_head_attention_forward(
+                    query,
+                    key,
+                    value,
+                    self.embed_dim,
+                    self.num_heads,
+                    self.in_proj_weight,
+                    self.in_proj_bias,
+                    self.bias_k,
+                    self.bias_v,
+                    self.add_zero_attn,
+                    self.dropout,
+                    self.out_proj.weight,
+                    self.out_proj.bias,
+                    self.training,
+                    key_padding_mask,
+                    need_weights,
+                    attn_mask,
+                )
             else:
-                return F.multi_head_attention_forward(query, key, value,
-                                                      self.embed_dim, self.num_heads,
-                                                      torch.empty([0]),
-                                                      self.in_proj_bias, self.bias_k, self.bias_v,
-                                                      self.add_zero_attn, self.dropout,
-                                                      self.out_proj.weight, self.out_proj.bias,
-                                                      self.training, key_padding_mask, need_weights,
-                                                      attn_mask, use_separate_proj_weight=True,
-                                                      q_proj_weight=self.q_proj_weight,
-                                                      k_proj_weight=self.k_proj_weight,
-                                                      v_proj_weight=self.v_proj_weight)
+                return F.multi_head_attention_forward(
+                    query,
+                    key,
+                    value,
+                    self.embed_dim,
+                    self.num_heads,
+                    torch.empty([0]),
+                    self.in_proj_bias,
+                    self.bias_k,
+                    self.bias_v,
+                    self.add_zero_attn,
+                    self.dropout,
+                    self.out_proj.weight,
+                    self.out_proj.bias,
+                    self.training,
+                    key_padding_mask,
+                    need_weights,
+                    attn_mask,
+                    use_separate_proj_weight=True,
+                    q_proj_weight=self.q_proj_weight,
+                    k_proj_weight=self.k_proj_weight,
+                    v_proj_weight=self.v_proj_weight,
+                )
 
         if incremental_state is not None:
             saved_state = self._get_input_buffer(incremental_state)
-            if 'prev_key' in saved_state:
+            if "prev_key" in saved_state:
                 # previous time steps are cached - no need to recompute
                 # key and value if they are static
                 if static_kv:
@@ -314,41 +391,69 @@ class MultiheadAttention(nn.Module):
             k = torch.cat([k, self.bias_k.repeat(1, bsz, 1)])
             v = torch.cat([v, self.bias_v.repeat(1, bsz, 1)])
             if attn_mask is not None:
-                attn_mask = torch.cat([attn_mask, attn_mask.new_zeros(attn_mask.size(0), 1)], dim=1)
+                attn_mask = torch.cat(
+                    [attn_mask, attn_mask.new_zeros(attn_mask.size(0), 1)], dim=1
+                )
             if key_padding_mask is not None:
                 key_padding_mask = torch.cat(
-                    [key_padding_mask, key_padding_mask.new_zeros(key_padding_mask.size(0), 1)], dim=1)
+                    [
+                        key_padding_mask,
+                        key_padding_mask.new_zeros(key_padding_mask.size(0), 1),
+                    ],
+                    dim=1,
+                )
 
-        q = q.contiguous().view(tgt_len, bsz * self.num_heads, self.head_dim).transpose(0, 1)
+        q = (
+            q.contiguous()
+            .view(tgt_len, bsz * self.num_heads, self.head_dim)
+            .transpose(0, 1)
+        )
         if k is not None:
-            k = k.contiguous().view(-1, bsz * self.num_heads, self.head_dim).transpose(0, 1)
+            k = (
+                k.contiguous()
+                .view(-1, bsz * self.num_heads, self.head_dim)
+                .transpose(0, 1)
+            )
         if v is not None:
-            v = v.contiguous().view(-1, bsz * self.num_heads, self.head_dim).transpose(0, 1)
+            v = (
+                v.contiguous()
+                .view(-1, bsz * self.num_heads, self.head_dim)
+                .transpose(0, 1)
+            )
 
         if saved_state is not None:
             # saved states are stored with shape (bsz, num_heads, seq_len, head_dim)
-            if 'prev_key' in saved_state:
-                prev_key = saved_state['prev_key'].view(bsz * self.num_heads, -1, self.head_dim)
+            if "prev_key" in saved_state:
+                prev_key = saved_state["prev_key"].view(
+                    bsz * self.num_heads, -1, self.head_dim
+                )
                 if static_kv:
                     k = prev_key
                 else:
                     k = torch.cat((prev_key, k), dim=1)
-            if 'prev_value' in saved_state:
-                prev_value = saved_state['prev_value'].view(bsz * self.num_heads, -1, self.head_dim)
+            if "prev_value" in saved_state:
+                prev_value = saved_state["prev_value"].view(
+                    bsz * self.num_heads, -1, self.head_dim
+                )
                 if static_kv:
                     v = prev_value
                 else:
                     v = torch.cat((prev_value, v), dim=1)
-            if 'prev_key_padding_mask' in saved_state and saved_state['prev_key_padding_mask'] is not None:
-                prev_key_padding_mask = saved_state['prev_key_padding_mask']
+            if (
+                "prev_key_padding_mask" in saved_state
+                and saved_state["prev_key_padding_mask"] is not None
+            ):
+                prev_key_padding_mask = saved_state["prev_key_padding_mask"]
                 if static_kv:
                     key_padding_mask = prev_key_padding_mask
                 else:
-                    key_padding_mask = torch.cat((prev_key_padding_mask, key_padding_mask), dim=1)
+                    key_padding_mask = torch.cat(
+                        (prev_key_padding_mask, key_padding_mask), dim=1
+                    )
 
-            saved_state['prev_key'] = k.view(bsz, self.num_heads, -1, self.head_dim)
-            saved_state['prev_value'] = v.view(bsz, self.num_heads, -1, self.head_dim)
-            saved_state['prev_key_padding_mask'] = key_padding_mask
+            saved_state["prev_key"] = k.view(bsz, self.num_heads, -1, self.head_dim)
+            saved_state["prev_value"] = v.view(bsz, self.num_heads, -1, self.head_dim)
+            saved_state["prev_key_padding_mask"] = key_padding_mask
 
             self._set_input_buffer(incremental_state, saved_state)
 
@@ -368,10 +473,19 @@ class MultiheadAttention(nn.Module):
             k = torch.cat([k, k.new_zeros((k.size(0), 1) + k.size()[2:])], dim=1)
             v = torch.cat([v, v.new_zeros((v.size(0), 1) + v.size()[2:])], dim=1)
             if attn_mask is not None:
-                attn_mask = torch.cat([attn_mask, attn_mask.new_zeros(attn_mask.size(0), 1)], dim=1)
+                attn_mask = torch.cat(
+                    [attn_mask, attn_mask.new_zeros(attn_mask.size(0), 1)], dim=1
+                )
             if key_padding_mask is not None:
                 key_padding_mask = torch.cat(
-                    [key_padding_mask, torch.zeros(key_padding_mask.size(0), 1).type_as(key_padding_mask)], dim=1)
+                    [
+                        key_padding_mask,
+                        torch.zeros(key_padding_mask.size(0), 1).type_as(
+                            key_padding_mask
+                        ),
+                    ],
+                    dim=1,
+                )
 
         attn_weights = torch.bmm(q, k.transpose(1, 2))
         attn_weights = self.apply_sparse_mask(attn_weights, tgt_len, src_len, bsz)
@@ -382,8 +496,11 @@ class MultiheadAttention(nn.Module):
             if len(attn_mask.shape) == 2:
                 attn_mask = attn_mask.unsqueeze(0)
             elif len(attn_mask.shape) == 3:
-                attn_mask = attn_mask[:, None].repeat([1, self.num_heads, 1, 1]).reshape(
-                    bsz * self.num_heads, tgt_len, src_len)
+                attn_mask = (
+                    attn_mask[:, None]
+                    .repeat([1, self.num_heads, 1, 1])
+                    .reshape(bsz * self.num_heads, tgt_len, src_len)
+                )
             attn_weights = attn_weights + attn_mask
 
         if enc_dec_attn_constraint_mask is not None:  # bs x head x L_kv
@@ -410,7 +527,11 @@ class MultiheadAttention(nn.Module):
 
         attn_weights_float = softmax(attn_weights, dim=-1)
         attn_weights = attn_weights_float.type_as(attn_weights)
-        attn_probs = F.dropout(attn_weights_float.type_as(attn_weights), p=self.dropout, training=self.training)
+        attn_probs = F.dropout(
+            attn_weights_float.type_as(attn_weights),
+            p=self.dropout,
+            training=self.training,
+        )
 
         if reset_attn_weight is not None:
             if reset_attn_weight:
@@ -424,7 +545,9 @@ class MultiheadAttention(nn.Module):
         attn = self.out_proj(attn)
 
         if need_weights:
-            attn_weights = attn_weights_float.view(bsz, self.num_heads, tgt_len, src_len).transpose(1, 0)
+            attn_weights = attn_weights_float.view(
+                bsz, self.num_heads, tgt_len, src_len
+            ).transpose(1, 0)
             if not need_head_weights:
                 # average attention weights over heads
                 attn_weights = attn_weights.mean(dim=0)
@@ -442,7 +565,7 @@ class MultiheadAttention(nn.Module):
         else:
             bias = self.in_proj_bias
             if bias is not None:
-                bias = bias[:self.embed_dim]
+                bias = bias[: self.embed_dim]
             return F.linear(query, self.q_proj_weight, bias)
 
     def in_proj_k(self, key):
@@ -452,7 +575,7 @@ class MultiheadAttention(nn.Module):
             weight = self.k_proj_weight
             bias = self.in_proj_bias
             if bias is not None:
-                bias = bias[self.embed_dim:2 * self.embed_dim]
+                bias = bias[self.embed_dim : 2 * self.embed_dim]
             return F.linear(key, weight, bias)
 
     def in_proj_v(self, value):
@@ -462,7 +585,7 @@ class MultiheadAttention(nn.Module):
             weight = self.v_proj_weight
             bias = self.in_proj_bias
             if bias is not None:
-                bias = bias[2 * self.embed_dim:]
+                bias = bias[2 * self.embed_dim :]
             return F.linear(value, weight, bias)
 
     def _in_proj(self, input, start=0, end=None):
@@ -474,17 +597,20 @@ class MultiheadAttention(nn.Module):
         return F.linear(input, weight, bias)
 
     def _get_input_buffer(self, incremental_state):
-        return get_incremental_state(
-            self,
-            incremental_state,
-            'attn_state',
-        ) or {}
+        return (
+            get_incremental_state(
+                self,
+                incremental_state,
+                "attn_state",
+            )
+            or {}
+        )
 
     def _set_input_buffer(self, incremental_state, buffer):
         set_incremental_state(
             self,
             incremental_state,
-            'attn_state',
+            "attn_state",
             buffer,
         )
 
@@ -494,17 +620,26 @@ class MultiheadAttention(nn.Module):
     def clear_buffer(self, incremental_state=None):
         if incremental_state is not None:
             saved_state = self._get_input_buffer(incremental_state)
-            if 'prev_key' in saved_state:
-                del saved_state['prev_key']
-            if 'prev_value' in saved_state:
-                del saved_state['prev_value']
+            if "prev_key" in saved_state:
+                del saved_state["prev_key"]
+            if "prev_value" in saved_state:
+                del saved_state["prev_value"]
             self._set_input_buffer(incremental_state, saved_state)
 
 
 class EncSALayer(nn.Module):
-    def __init__(self, c, num_heads, dropout, attention_dropout=0.1,
-                 relu_dropout=0.1, kernel_size=9, padding='SAME', act='gelu',
-                 ffn_hidden_size=1024):
+    def __init__(
+        self,
+        c,
+        num_heads,
+        dropout,
+        attention_dropout=0.1,
+        relu_dropout=0.1,
+        kernel_size=9,
+        padding="SAME",
+        act="gelu",
+        ffn_hidden_size=1024,
+    ):
         super().__init__()
         self.c = c
         self.dropout = dropout
@@ -512,24 +647,35 @@ class EncSALayer(nn.Module):
         if num_heads > 0:
             self.layer_norm1 = LayerNorm(c)
             self.self_attn = MultiheadAttention(
-                self.c, num_heads, self_attention=True, dropout=attention_dropout, bias=False)
+                self.c,
+                num_heads,
+                self_attention=True,
+                dropout=attention_dropout,
+                bias=False,
+            )
         self.layer_norm2 = LayerNorm(c)
         self.ffn = TransformerFFNLayer(
-            c, ffn_hidden_size, kernel_size=kernel_size, dropout=relu_dropout, padding=padding, act=act)
+            c,
+            ffn_hidden_size,
+            kernel_size=kernel_size,
+            dropout=relu_dropout,
+            padding=padding,
+            act=act,
+        )
 
     def forward(self, x, encoder_padding_mask=None, **kwargs):
-        layer_norm_training = kwargs.get('layer_norm_training', None)
+        layer_norm_training = kwargs.get("layer_norm_training", None)
         if layer_norm_training is not None:
             self.layer_norm1.training = layer_norm_training
             self.layer_norm2.training = layer_norm_training
         if self.num_heads > 0:
             residual = x
             x = self.layer_norm1(x)
-            x, _, = self.self_attn(
-                query=x,
-                key=x,
-                value=x,
-                key_padding_mask=encoder_padding_mask
+            (
+                x,
+                _,
+            ) = self.self_attn(
+                query=x, key=x, value=x, key_padding_mask=encoder_padding_mask
             )
             x = F.dropout(x, self.dropout, training=self.training)
             x = residual + x
@@ -545,8 +691,18 @@ class EncSALayer(nn.Module):
 
 
 class DecSALayer(nn.Module):
-    def __init__(self, c, num_heads, dropout, attention_dropout=0.1, relu_dropout=0.1,
-                 kernel_size=9, ffn_hidden_size=1024, act='gelu', post_ln=False):
+    def __init__(
+        self,
+        c,
+        num_heads,
+        dropout,
+        attention_dropout=0.1,
+        relu_dropout=0.1,
+        kernel_size=9,
+        ffn_hidden_size=1024,
+        act="gelu",
+        post_ln=False,
+    ):
         super().__init__()
         self.c = c
         self.dropout = dropout
@@ -556,26 +712,36 @@ class DecSALayer(nn.Module):
         )
         self.layer_norm2 = LayerNorm(c)
         self.encoder_attn = MultiheadAttention(
-            c, num_heads, encoder_decoder_attention=True, dropout=attention_dropout, bias=False,
+            c,
+            num_heads,
+            encoder_decoder_attention=True,
+            dropout=attention_dropout,
+            bias=False,
         )
         self.layer_norm3 = LayerNorm(c)
         self.ffn = TransformerFFNLayer(
-            c, ffn_hidden_size, padding='LEFT', kernel_size=kernel_size, dropout=relu_dropout, act=act)
+            c,
+            ffn_hidden_size,
+            padding="LEFT",
+            kernel_size=kernel_size,
+            dropout=relu_dropout,
+            act=act,
+        )
         self.post_ln = post_ln
 
     def forward(
-            self,
-            x,
-            encoder_out=None,
-            encoder_padding_mask=None,
-            incremental_state=None,
-            self_attn_mask=None,
-            self_attn_padding_mask=None,
-            attn_out=None,
-            reset_attn_weight=None,
-            **kwargs,
+        self,
+        x,
+        encoder_out=None,
+        encoder_padding_mask=None,
+        incremental_state=None,
+        self_attn_mask=None,
+        self_attn_padding_mask=None,
+        attn_out=None,
+        reset_attn_weight=None,
+        **kwargs,
     ):
-        layer_norm_training = kwargs.get('layer_norm_training', None)
+        layer_norm_training = kwargs.get("layer_norm_training", None)
         if layer_norm_training is not None:
             self.layer_norm1.training = layer_norm_training
             self.layer_norm2.training = layer_norm_training
@@ -589,7 +755,7 @@ class DecSALayer(nn.Module):
             value=x,
             key_padding_mask=self_attn_padding_mask,
             incremental_state=incremental_state,
-            attn_mask=self_attn_mask
+            attn_mask=self_attn_mask,
         )
         x = F.dropout(x, self.dropout, training=self.training)
         x = residual + x
@@ -609,9 +775,10 @@ class DecSALayer(nn.Module):
                 key_padding_mask=encoder_padding_mask,
                 incremental_state=incremental_state,
                 static_kv=True,
-                enc_dec_attn_constraint_mask=get_incremental_state(self, incremental_state,
-                                                                   'enc_dec_attn_constraint_mask'),
-                reset_attn_weight=reset_attn_weight
+                enc_dec_attn_constraint_mask=get_incremental_state(
+                    self, incremental_state, "enc_dec_attn_constraint_mask"
+                ),
+                reset_attn_weight=reset_attn_weight,
             )
             attn_logits = attn[1]
         elif attn_out is not None:
@@ -632,7 +799,9 @@ class DecSALayer(nn.Module):
             x = self.layer_norm3(x)
         return x, attn_logits
 
-    def clear_buffer(self, input, encoder_out=None, encoder_padding_mask=None, incremental_state=None):
+    def clear_buffer(
+        self, input, encoder_out=None, encoder_padding_mask=None, incremental_state=None
+    ):
         self.encoder_attn.clear_buffer(incremental_state)
         self.ffn.clear_buffer(incremental_state)
 
@@ -641,31 +810,51 @@ class DecSALayer(nn.Module):
 
 
 class TransformerEncoderLayer(nn.Module):
-    def __init__(self, hidden_size, dropout, kernel_size=9, num_heads=2, ffn_hidden_size=1024):
+    def __init__(
+        self, hidden_size, dropout, kernel_size=9, num_heads=2, ffn_hidden_size=1024
+    ):
         super().__init__()
         self.hidden_size = hidden_size
         self.dropout = dropout
         self.num_heads = num_heads
         self.op = EncSALayer(
-            hidden_size, num_heads, dropout=dropout,
-            attention_dropout=0.0, relu_dropout=dropout,
-            kernel_size=kernel_size, ffn_hidden_size=ffn_hidden_size)
+            hidden_size,
+            num_heads,
+            dropout=dropout,
+            attention_dropout=0.0,
+            relu_dropout=dropout,
+            kernel_size=kernel_size,
+            ffn_hidden_size=ffn_hidden_size,
+        )
 
     def forward(self, x, **kwargs):
         return self.op(x, **kwargs)
 
 
 class TransformerDecoderLayer(nn.Module):
-    def __init__(self, hidden_size, dropout, kernel_size=9, num_heads=2, ffn_hidden_size=1024, post_ln=False):
+    def __init__(
+        self,
+        hidden_size,
+        dropout,
+        kernel_size=9,
+        num_heads=2,
+        ffn_hidden_size=1024,
+        post_ln=False,
+    ):
         super().__init__()
         self.hidden_size = hidden_size
         self.dropout = dropout
         self.num_heads = num_heads
         self.op = DecSALayer(
-            hidden_size, num_heads, dropout=dropout,
-            attention_dropout=0.0, relu_dropout=dropout,
-            kernel_size=kernel_size, ffn_hidden_size=ffn_hidden_size,
-            post_ln=post_ln)
+            hidden_size,
+            num_heads,
+            dropout=dropout,
+            attention_dropout=0.0,
+            relu_dropout=dropout,
+            kernel_size=kernel_size,
+            ffn_hidden_size=ffn_hidden_size,
+            post_ln=post_ln,
+        )
 
     def forward(self, x, **kwargs):
         return self.op(x, **kwargs)
@@ -678,9 +867,18 @@ class TransformerDecoderLayer(nn.Module):
 
 
 class FFTBlocks(nn.Module):
-    def __init__(self, hidden_size, num_layers, ffn_kernel_size=9, dropout=0.0,
-                 num_heads=2, use_pos_embed=True, use_last_norm=True,
-                 use_pos_embed_alpha=True, ffn_hidden_size=1024):
+    def __init__(
+        self,
+        hidden_size,
+        num_layers,
+        ffn_kernel_size=9,
+        dropout=0.0,
+        num_heads=2,
+        use_pos_embed=True,
+        use_last_norm=True,
+        use_pos_embed_alpha=True,
+        ffn_hidden_size=1024,
+    ):
         super().__init__()
         self.num_layers = num_layers
         embed_dim = self.hidden_size = hidden_size
@@ -690,18 +888,28 @@ class FFTBlocks(nn.Module):
         if use_pos_embed:
             self.max_source_positions = DEFAULT_MAX_TARGET_POSITIONS
             self.padding_idx = 0
-            self.pos_embed_alpha = nn.Parameter(torch.Tensor([1])) if use_pos_embed_alpha else 1
+            self.pos_embed_alpha = (
+                nn.Parameter(torch.Tensor([1])) if use_pos_embed_alpha else 1
+            )
             self.embed_positions = SinusoidalPositionalEmbedding(
-                embed_dim, self.padding_idx, init_size=DEFAULT_MAX_TARGET_POSITIONS,
+                embed_dim,
+                self.padding_idx,
+                init_size=DEFAULT_MAX_TARGET_POSITIONS,
             )
 
         self.layers = nn.ModuleList([])
-        self.layers.extend([
-            TransformerEncoderLayer(self.hidden_size, self.dropout,
-                                    kernel_size=ffn_kernel_size, num_heads=num_heads,
-                                    ffn_hidden_size=ffn_hidden_size)
-            for _ in range(self.num_layers)
-        ])
+        self.layers.extend(
+            [
+                TransformerEncoderLayer(
+                    self.hidden_size,
+                    self.dropout,
+                    kernel_size=ffn_kernel_size,
+                    num_heads=num_heads,
+                    ffn_hidden_size=ffn_hidden_size,
+                )
+                for _ in range(self.num_layers)
+            ]
+        )
         if self.use_last_norm:
             self.layer_norm = nn.LayerNorm(embed_dim)
         else:
@@ -713,8 +921,12 @@ class FFTBlocks(nn.Module):
         :param padding_mask: [B, T]
         :return: [B, T, C] or [L, B, T, C]
         """
-        padding_mask = x.abs().sum(-1).eq(0).data if padding_mask is None else padding_mask
-        nonpadding_mask_TB = 1 - padding_mask.transpose(0, 1).float()[:, :, None]  # [T, B, 1]
+        padding_mask = (
+            x.abs().sum(-1).eq(0).data if padding_mask is None else padding_mask
+        )
+        nonpadding_mask_TB = (
+            1 - padding_mask.transpose(0, 1).float()[:, :, None]
+        )  # [T, B, 1]
         if self.use_pos_embed:
             positions = self.pos_embed_alpha * self.embed_positions(x[..., 0])
             x = x + positions
@@ -723,7 +935,10 @@ class FFTBlocks(nn.Module):
         x = x.transpose(0, 1) * nonpadding_mask_TB
         hiddens = []
         for layer in self.layers:
-            x = layer(x, encoder_padding_mask=padding_mask, attn_mask=attn_mask) * nonpadding_mask_TB
+            x = (
+                layer(x, encoder_padding_mask=padding_mask, attn_mask=attn_mask)
+                * nonpadding_mask_TB
+            )
             hiddens.append(x)
         if self.use_last_norm:
             x = self.layer_norm(x) * nonpadding_mask_TB
@@ -736,15 +951,32 @@ class FFTBlocks(nn.Module):
 
 
 class FastSpeechEncoder(FFTBlocks):
-    def __init__(self, dict_size, hidden_size=256, num_layers=4, kernel_size=9,
-                 dropout=0.0, num_heads=2, ffn_hidden_size=1024):
-        super().__init__(hidden_size, num_layers, kernel_size, num_heads=num_heads,
-                         use_pos_embed=False, dropout=dropout, ffn_hidden_size=ffn_hidden_size)
+    def __init__(
+        self,
+        dict_size,
+        hidden_size=256,
+        num_layers=4,
+        kernel_size=9,
+        dropout=0.0,
+        num_heads=2,
+        ffn_hidden_size=1024,
+    ):
+        super().__init__(
+            hidden_size,
+            num_layers,
+            kernel_size,
+            num_heads=num_heads,
+            use_pos_embed=False,
+            dropout=dropout,
+            ffn_hidden_size=ffn_hidden_size,
+        )
         self.embed_tokens = Embedding(dict_size, hidden_size, 0)
         self.embed_scale = math.sqrt(hidden_size)
         self.padding_idx = 0
         self.embed_positions = SinusoidalPositionalEmbedding(
-            hidden_size, self.padding_idx, init_size=DEFAULT_MAX_TARGET_POSITIONS,
+            hidden_size,
+            self.padding_idx,
+            init_size=DEFAULT_MAX_TARGET_POSITIONS,
         )
 
     def forward(self, txt_tokens, attn_mask=None, other_embeds=0):
@@ -758,7 +990,9 @@ class FastSpeechEncoder(FFTBlocks):
         encoder_padding_mask = txt_tokens.eq(self.padding_idx).data
         x = self.forward_embedding(txt_tokens) + other_embeds  # [B, T, H]
         if self.num_layers > 0:
-            x = super(FastSpeechEncoder, self).forward(x, encoder_padding_mask, attn_mask=attn_mask)
+            x = super(FastSpeechEncoder, self).forward(
+                x, encoder_padding_mask, attn_mask=attn_mask
+            )
         return x
 
     def forward_embedding(self, txt_tokens):

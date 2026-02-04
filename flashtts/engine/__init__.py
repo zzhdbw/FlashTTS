@@ -5,13 +5,11 @@ from ..import_utils import _LazyModule
 from typing import TYPE_CHECKING
 
 _import_structure = {
-    "base_engine": [
-        "BaseEngine"
-    ],
+    "base_engine": ["BaseEngine"],
     "spark_engine": ["AsyncSparkEngine", "SparkAcousticTokens"],
     "orpheus_engine": ["AsyncOrpheusEngine"],
     "mega_engine": ["AsyncMega3Engine"],
-    "auto_engine": ["AutoEngine"]
+    "auto_engine": ["AutoEngine"],
 }
 
 if TYPE_CHECKING:

@@ -19,140 +19,139 @@ class StateInfo:
 
     def init_acoustic_tokens(self):
         if self.acoustic_tokens is None:
-            self.acoustic_tokens = {
-                "female": None,
-                "male": None
-            }
+            self.acoustic_tokens = {"female": None, "male": None}
 
 
 # 定义支持多种方式传入参考音频的请求协议
 class CloneRequest(BaseModel):
-    text: str = Field(
-        ...,
-        description="The text to generate audio for."
-    )
+    text: str = Field(..., description="The text to generate audio for.")
     reference_audio: Optional[str] = Field(
         default=None,
         description=(
             "A reference audio sample used for voice cloning. "
             "This field accepts either a URL pointing to an audio file or base64 encoded audio data."
-        )
+        ),
     )
     reference_text: Optional[str] = Field(
         default=None,
-        description="Optional transcript or description corresponding to the reference audio."
+        description="Optional transcript or description corresponding to the reference audio.",
     )
-    pitch: Optional[Literal["very_low", "low", "moderate", "high", "very_high"]] = Field(
-        default=None,
-        description="Specifies the pitch level for the generated audio. Valid options: 'very_low', 'low', 'moderate', 'high', 'very_high'."
+    pitch: Optional[Literal["very_low", "low", "moderate", "high", "very_high"]] = (
+        Field(
+            default=None,
+            description="Specifies the pitch level for the generated audio. Valid options: 'very_low', 'low', 'moderate', 'high', 'very_high'.",
+        )
     )
-    speed: Optional[Literal["very_low", "low", "moderate", "high", "very_high"]] = Field(
-        default=None,
-        description="Specifies the speed level of the audio output. Valid options: 'very_low', 'low', 'moderate', 'high', 'very_high'."
+    speed: Optional[Literal["very_low", "low", "moderate", "high", "very_high"]] = (
+        Field(
+            default=None,
+            description="Specifies the speed level of the audio output. Valid options: 'very_low', 'low', 'moderate', 'high', 'very_high'.",
+        )
     )
     temperature: float = Field(
         default=0.9,
         description="Controls the randomness of the audio generation process. "
-                    "Higher values lead to more variation in the generated audio."
+        "Higher values lead to more variation in the generated audio.",
     )
     top_k: int = Field(
         default=50,
-        description="Limits the number of highest probability tokens considered during generation."
+        description="Limits the number of highest probability tokens considered during generation.",
     )
     top_p: float = Field(
         default=0.95,
-        description="Nucleus sampling parameter. Only tokens with a cumulative probability of 'top_p' are considered."
+        description="Nucleus sampling parameter. Only tokens with a cumulative probability of 'top_p' are considered.",
     )
     repetition_penalty: float = Field(
         default=1.0,
         description="Controls the repetition penalty applied to the generated text. "
-                    "Higher values penalize repeated words and phrases."
+        "Higher values penalize repeated words and phrases.",
     )
     max_tokens: int = Field(
         default=4096,
-        description="The maximum number of tokens that can be generated in the output."
+        description="The maximum number of tokens that can be generated in the output.",
     )
     length_threshold: int = Field(
         default=50,
         description="The text length threshold for segmentation. "
-                    "If the input text exceeds this threshold, it will be split into multiple segments for synthesis."
+        "If the input text exceeds this threshold, it will be split into multiple segments for synthesis.",
     )
     window_size: int = Field(
         default=50,
         description="Specifies the window size for each segment during text splitting. "
-                    "It determines the number of tokens included in each segment."
+        "It determines the number of tokens included in each segment.",
     )
     stream: bool = Field(
         default=False,
         description="Determines whether the audio output should be streamed in real-time (True) "
-                    "or returned after complete generation (False)."
+        "or returned after complete generation (False).",
     )
     response_format: Literal["mp3", "opus", "aac", "flac", "wav", "pcm"] = Field(
         default="mp3",
         description=(
             "The format in which to return audio. Supported formats: mp3, opus, aac, flac, wav, pcm. "
             "Note: PCM returns raw 16-bit samples without headers and AAC is not currently supported."
-        )
+        ),
     )
 
 
 # 定义角色语音合成请求体
 class SpeakRequest(BaseModel):
-    text: str = Field(
-        ...,
-        description="The text to generate audio for."
-    )
+    text: str = Field(..., description="The text to generate audio for.")
     name: Optional[str] = Field(
         default=None,
-        description="The name of the voice character to be used for speech synthesis."
+        description="The name of the voice character to be used for speech synthesis.",
     )
-    pitch: Optional[Literal["very_low", "low", "moderate", "high", "very_high"]] = Field(
-        default=None,
-        description="Specifies the pitch level for the generated audio. Valid options: 'very_low', 'low', 'moderate', 'high', 'very_high'."
+    pitch: Optional[Literal["very_low", "low", "moderate", "high", "very_high"]] = (
+        Field(
+            default=None,
+            description="Specifies the pitch level for the generated audio. Valid options: 'very_low', 'low', 'moderate', 'high', 'very_high'.",
+        )
     )
-    speed: Optional[Literal["very_low", "low", "moderate", "high", "very_high"]] = Field(
-        default=None,
-        description="Specifies the speed level of the audio output. Valid options: 'very_low', 'low', 'moderate', 'high', 'very_high'."
+    speed: Optional[Literal["very_low", "low", "moderate", "high", "very_high"]] = (
+        Field(
+            default=None,
+            description="Specifies the speed level of the audio output. Valid options: 'very_low', 'low', 'moderate', 'high', 'very_high'.",
+        )
     )
     temperature: float = Field(
         default=0.9,
-        description="Controls the randomness of the speech synthesis. A higher temperature produces more diverse outputs."
+        description="Controls the randomness of the speech synthesis. A higher temperature produces more diverse outputs.",
     )
     top_k: int = Field(
         default=50,
-        description="Limits the sampling to the top 'k' most probable tokens during generation."
+        description="Limits the sampling to the top 'k' most probable tokens during generation.",
     )
     top_p: float = Field(
         default=0.95,
-        description="Nucleus sampling threshold: only tokens with a cumulative probability up to 'top_p' are considered."
+        description="Nucleus sampling threshold: only tokens with a cumulative probability up to 'top_p' are considered.",
     )
     repetition_penalty: float = Field(
         default=1.0,
         description="Controls the repetition penalty applied to the generated text. "
-                    "Higher values penalize repeated words and phrases."
+        "Higher values penalize repeated words and phrases.",
     )
     max_tokens: int = Field(
         default=4096,
-        description="Specifies the maximum number of tokens to generate in the output."
+        description="Specifies the maximum number of tokens to generate in the output.",
     )
     length_threshold: int = Field(
         default=50,
-        description="If the input text exceeds this token length threshold, it will be split into multiple segments for synthesis."
+        description="If the input text exceeds this token length threshold, it will be split into multiple segments for synthesis.",
     )
     window_size: int = Field(
         default=50,
-        description="Determines the window size for each text segment when performing segmentation on longer texts."
+        description="Determines the window size for each text segment when performing segmentation on longer texts.",
     )
     stream: bool = Field(
         default=False,
-        description="Indicates whether the audio output should be streamed in real-time (True) or returned only after complete synthesis (False)."
+        description="Indicates whether the audio output should be streamed in real-time (True) or returned only after complete synthesis (False).",
     )
     response_format: Literal["mp3", "opus", "aac", "flac", "wav", "pcm"] = Field(
         default="mp3",
         description=(
             "The format in which to return audio. Supported formats: mp3, opus, aac, flac, wav, pcm. "
             "Note: PCM returns raw 16-bit samples without headers and AAC is not currently supported."
-        )
+        ),
     )
 
 
@@ -164,50 +163,50 @@ class MultiSpeakRequest(BaseModel):
             "The text for multi-role audio synthesis. For sentences intended for a specific role, "
             "please prefix the sentence with `<role:角色名>`. For example, `<role:tara> Hello, how are you?` "
             "indicates that the sentence should be synthesized using the voice of the 'tara' character."
-        )
+        ),
     )
     temperature: float = Field(
         default=0.9,
-        description="Controls the randomness of the audio generation. Higher temperatures yield more diverse outputs."
+        description="Controls the randomness of the audio generation. Higher temperatures yield more diverse outputs.",
     )
     top_k: int = Field(
         default=50,
-        description="Limits the synthesis to the top 'k' highest probability tokens considered during generation."
+        description="Limits the synthesis to the top 'k' highest probability tokens considered during generation.",
     )
     top_p: float = Field(
         default=0.95,
-        description="Nucleus sampling parameter: only tokens with a cumulative probability up to 'top_p' are considered."
+        description="Nucleus sampling parameter: only tokens with a cumulative probability up to 'top_p' are considered.",
     )
     repetition_penalty: float = Field(
         default=1.0,
         description="Controls the repetition penalty applied to the generated text. "
-                    "Higher values penalize repeated words and phrases."
+        "Higher values penalize repeated words and phrases.",
     )
     max_tokens: int = Field(
         default=4096,
-        description="Specifies the maximum number of tokens that can be generated in the output."
+        description="Specifies the maximum number of tokens that can be generated in the output.",
     )
     length_threshold: int = Field(
         default=50,
         description=(
             "Defines the text length threshold for segmentation. If the input text exceeds this threshold, "
             "it will be split into multiple segments for synthesis."
-        )
+        ),
     )
     window_size: int = Field(
         default=50,
-        description="Specifies the window size for each text segment when splitting longer texts."
+        description="Specifies the window size for each text segment when splitting longer texts.",
     )
     stream: bool = Field(
         default=False,
-        description="Indicates whether to stream the audio output in real-time (True) or to return it after complete synthesis (False)."
+        description="Indicates whether to stream the audio output in real-time (True) or to return it after complete synthesis (False).",
     )
     response_format: Literal["mp3", "opus", "aac", "flac", "wav", "pcm"] = Field(
         default="mp3",
         description=(
             "The format in which to return audio. Supported formats: mp3, opus, aac, flac, wav, pcm. "
             "Note: PCM returns raw 16-bit samples without headers and AAC is not currently supported."
-        )
+        ),
     )
 
 
@@ -235,41 +234,39 @@ class OpenAISpeechRequest(BaseModel):
         description="The name of the audio character you want to use, or a URL or base64 of a reference audio.",
     )
     pitch: float = Field(
-        default=1.0,
-        description="Specifies the pitch level for the generated audio. "
+        default=1.0, description="Specifies the pitch level for the generated audio. "
     )
     speed: float = Field(
-        default=1.0,
-        description="Specifies the speed level of the audio output."
+        default=1.0, description="Specifies the speed level of the audio output."
     )
     temperature: float = Field(
         default=0.9,
-        description="Controls the randomness of the speech synthesis. A higher temperature produces more diverse outputs."
+        description="Controls the randomness of the speech synthesis. A higher temperature produces more diverse outputs.",
     )
     top_k: int = Field(
         default=50,
-        description="Limits the sampling to the top 'k' most probable tokens during generation."
+        description="Limits the sampling to the top 'k' most probable tokens during generation.",
     )
     top_p: float = Field(
         default=0.95,
-        description="Nucleus sampling threshold: only tokens with a cumulative probability up to 'top_p' are considered."
+        description="Nucleus sampling threshold: only tokens with a cumulative probability up to 'top_p' are considered.",
     )
     repetition_penalty: float = Field(
         default=1.0,
         description="Controls the repetition penalty applied to the generated text. "
-                    "Higher values penalize repeated words and phrases."
+        "Higher values penalize repeated words and phrases.",
     )
     max_tokens: int = Field(
         default=4096,
-        description="Specifies the maximum number of tokens to generate in the output."
+        description="Specifies the maximum number of tokens to generate in the output.",
     )
     length_threshold: int = Field(
         default=50,
-        description="If the input text exceeds this token length threshold, it will be split into multiple segments for synthesis."
+        description="If the input text exceeds this token length threshold, it will be split into multiple segments for synthesis.",
     )
     window_size: int = Field(
         default=50,
-        description="Determines the window size for each text segment when performing segmentation on longer texts."
+        description="Determines the window size for each text segment when performing segmentation on longer texts.",
     )
     response_format: Literal["mp3", "opus", "aac", "flac", "wav", "pcm"] = Field(
         default="mp3",

@@ -43,8 +43,19 @@ def sequence_mask(length, max_length=None):
 
 
 class Encoder(nn.Module):
-    def __init__(self, hidden_channels, filter_channels, n_heads, n_layers, kernel_size=1, p_dropout=0.,
-                 window_size=None, block_length=None, pre_ln=False, **kwargs):
+    def __init__(
+        self,
+        hidden_channels,
+        filter_channels,
+        n_heads,
+        n_layers,
+        kernel_size=1,
+        p_dropout=0.0,
+        window_size=None,
+        block_length=None,
+        pre_ln=False,
+        **kwargs
+    ):
         super().__init__()
         self.hidden_channels = hidden_channels
         self.filter_channels = filter_channels
@@ -63,11 +74,25 @@ class Encoder(nn.Module):
         self.norm_layers_2 = nn.ModuleList()
         for i in range(self.n_layers):
             self.attn_layers.append(
-                MultiHeadAttention(hidden_channels, hidden_channels, n_heads, window_size=window_size,
-                                   p_dropout=p_dropout, block_length=block_length))
+                MultiHeadAttention(
+                    hidden_channels,
+                    hidden_channels,
+                    n_heads,
+                    window_size=window_size,
+                    p_dropout=p_dropout,
+                    block_length=block_length,
+                )
+            )
             self.norm_layers_1.append(LayerNorm(hidden_channels))
             self.ffn_layers.append(
-                FFN(hidden_channels, hidden_channels, filter_channels, kernel_size, p_dropout=p_dropout))
+                FFN(
+                    hidden_channels,
+                    hidden_channels,
+                    filter_channels,
+                    kernel_size,
+                    p_dropout=p_dropout,
+                )
+            )
             self.norm_layers_2.append(LayerNorm(hidden_channels))
         if pre_ln:
             self.last_ln = LayerNorm(hidden_channels)
@@ -102,8 +127,18 @@ class Encoder(nn.Module):
 
 
 class MultiHeadAttention(nn.Module):
-    def __init__(self, channels, out_channels, n_heads, window_size=None, heads_share=True, p_dropout=0.,
-                 block_length=None, proximal_bias=False, proximal_init=False):
+    def __init__(
+        self,
+        channels,
+        out_channels,
+        n_heads,
+        window_size=None,
+        heads_share=True,
+        p_dropout=0.0,
+        block_length=None,
+        proximal_bias=False,
+        proximal_init=False,
+    ):
         super().__init__()
         assert channels % n_heads == 0
 
@@ -123,9 +158,15 @@ class MultiHeadAttention(nn.Module):
         self.conv_v = nn.Conv1d(channels, channels, 1)
         if window_size is not None:
             n_heads_rel = 1 if heads_share else n_heads
-            rel_stddev = self.k_channels ** -0.5
-            self.emb_rel_k = nn.Parameter(torch.randn(n_heads_rel, window_size * 2 + 1, self.k_channels) * rel_stddev)
-            self.emb_rel_v = nn.Parameter(torch.randn(n_heads_rel, window_size * 2 + 1, self.k_channels) * rel_stddev)
+            rel_stddev = self.k_channels**-0.5
+            self.emb_rel_k = nn.Parameter(
+                torch.randn(n_heads_rel, window_size * 2 + 1, self.k_channels)
+                * rel_stddev
+            )
+            self.emb_rel_v = nn.Parameter(
+                torch.randn(n_heads_rel, window_size * 2 + 1, self.k_channels)
+                * rel_stddev
+            )
         self.conv_o = nn.Conv1d(channels, out_channels, 1)
         self.drop = nn.Dropout(p_dropout)
 
@@ -155,7 +196,9 @@ class MultiHeadAttention(nn.Module):
 
         scores = torch.matmul(query, key.transpose(-2, -1)) / math.sqrt(self.k_channels)
         if self.window_size is not None:
-            assert t_s == t_t, "Relative attention is only available for self-attention."
+            assert (
+                t_s == t_t
+            ), "Relative attention is only available for self-attention."
             key_relative_embeddings = self._get_relative_embeddings(self.emb_rel_k, t_s)
             rel_logits = self._matmul_with_relative_keys(query, key_relative_embeddings)
             rel_logits = self._relative_position_to_absolute_position(rel_logits)
@@ -163,20 +206,32 @@ class MultiHeadAttention(nn.Module):
             scores = scores + scores_local
         if self.proximal_bias:
             assert t_s == t_t, "Proximal bias is only available for self-attention."
-            scores = scores + self._attention_bias_proximal(t_s).to(device=scores.device, dtype=scores.dtype)
+            scores = scores + self._attention_bias_proximal(t_s).to(
+                device=scores.device, dtype=scores.dtype
+            )
         if mask is not None:
             scores = scores.masked_fill(mask == 0, -1e4)
             if self.block_length is not None:
-                block_mask = torch.ones_like(scores).triu(-self.block_length).tril(self.block_length)
+                block_mask = (
+                    torch.ones_like(scores)
+                    .triu(-self.block_length)
+                    .tril(self.block_length)
+                )
                 scores = scores * block_mask + -1e4 * (1 - block_mask)
         p_attn = F.softmax(scores, dim=-1)  # [b, n_h, t_t, t_s]
         p_attn = self.drop(p_attn)
         output = torch.matmul(p_attn, value)
         if self.window_size is not None:
             relative_weights = self._absolute_position_to_relative_position(p_attn)
-            value_relative_embeddings = self._get_relative_embeddings(self.emb_rel_v, t_s)
-            output = output + self._matmul_with_relative_values(relative_weights, value_relative_embeddings)
-        output = output.transpose(2, 3).contiguous().view(b, d, t_t)  # [b, n_h, t_t, d_k] -> [b, d, t_t]
+            value_relative_embeddings = self._get_relative_embeddings(
+                self.emb_rel_v, t_s
+            )
+            output = output + self._matmul_with_relative_values(
+                relative_weights, value_relative_embeddings
+            )
+        output = (
+            output.transpose(2, 3).contiguous().view(b, d, t_t)
+        )  # [b, n_h, t_t, d_k] -> [b, d, t_t]
         return output, p_attn
 
     def _matmul_with_relative_values(self, x, y):
@@ -206,10 +261,13 @@ class MultiHeadAttention(nn.Module):
         if pad_length > 0:
             padded_relative_embeddings = F.pad(
                 relative_embeddings,
-                convert_pad_shape([[0, 0], [pad_length, pad_length], [0, 0]]))
+                convert_pad_shape([[0, 0], [pad_length, pad_length], [0, 0]]),
+            )
         else:
             padded_relative_embeddings = relative_embeddings
-        used_relative_embeddings = padded_relative_embeddings[:, slice_start_position:slice_end_position]
+        used_relative_embeddings = padded_relative_embeddings[
+            :, slice_start_position:slice_end_position
+        ]
         return used_relative_embeddings
 
     def _relative_position_to_absolute_position(self, x):
@@ -226,7 +284,9 @@ class MultiHeadAttention(nn.Module):
         x_flat = F.pad(x_flat, convert_pad_shape([[0, 0], [0, 0], [0, length - 1]]))
 
         # Reshape and slice out the padded elements.
-        x_final = x_flat.view([batch, heads, length + 1, 2 * length - 1])[:, :, :length, length - 1:]
+        x_final = x_flat.view([batch, heads, length + 1, 2 * length - 1])[
+            :, :, :length, length - 1 :
+        ]
         return x_final
 
     def _absolute_position_to_relative_position(self, x):
@@ -256,7 +316,15 @@ class MultiHeadAttention(nn.Module):
 
 
 class FFN(nn.Module):
-    def __init__(self, in_channels, out_channels, filter_channels, kernel_size, p_dropout=0., activation=None):
+    def __init__(
+        self,
+        in_channels,
+        out_channels,
+        filter_channels,
+        kernel_size,
+        p_dropout=0.0,
+        activation=None,
+    ):
         super().__init__()
         self.in_channels = in_channels
         self.out_channels = out_channels
@@ -265,7 +333,9 @@ class FFN(nn.Module):
         self.p_dropout = p_dropout
         self.activation = activation
 
-        self.conv_1 = nn.Conv1d(in_channels, filter_channels, kernel_size, padding=kernel_size // 2)
+        self.conv_1 = nn.Conv1d(
+            in_channels, filter_channels, kernel_size, padding=kernel_size // 2
+        )
         self.conv_2 = nn.Conv1d(filter_channels, out_channels, 1)
         self.drop = nn.Dropout(p_dropout)
 
@@ -302,7 +372,15 @@ class LayerNorm(nn.Module):
 
 
 class ConvReluNorm(nn.Module):
-    def __init__(self, in_channels, hidden_channels, out_channels, kernel_size, n_layers, p_dropout):
+    def __init__(
+        self,
+        in_channels,
+        hidden_channels,
+        out_channels,
+        kernel_size,
+        n_layers,
+        p_dropout,
+    ):
         super().__init__()
         self.in_channels = in_channels
         self.hidden_channels = hidden_channels
@@ -314,13 +392,22 @@ class ConvReluNorm(nn.Module):
 
         self.conv_layers = nn.ModuleList()
         self.norm_layers = nn.ModuleList()
-        self.conv_layers.append(nn.Conv1d(in_channels, hidden_channels, kernel_size, padding=kernel_size // 2))
+        self.conv_layers.append(
+            nn.Conv1d(
+                in_channels, hidden_channels, kernel_size, padding=kernel_size // 2
+            )
+        )
         self.norm_layers.append(LayerNorm(hidden_channels))
-        self.relu_drop = nn.Sequential(
-            nn.ReLU(),
-            nn.Dropout(p_dropout))
+        self.relu_drop = nn.Sequential(nn.ReLU(), nn.Dropout(p_dropout))
         for _ in range(n_layers - 1):
-            self.conv_layers.append(nn.Conv1d(hidden_channels, hidden_channels, kernel_size, padding=kernel_size // 2))
+            self.conv_layers.append(
+                nn.Conv1d(
+                    hidden_channels,
+                    hidden_channels,
+                    kernel_size,
+                    padding=kernel_size // 2,
+                )
+            )
             self.norm_layers.append(LayerNorm(hidden_channels))
         self.proj = nn.Conv1d(hidden_channels, out_channels, 1)
         self.proj.weight.data.zero_()
@@ -337,21 +424,22 @@ class ConvReluNorm(nn.Module):
 
 
 class RelTransformerEncoder(nn.Module):
-    def __init__(self,
-                 n_vocab,
-                 out_channels,
-                 hidden_channels,
-                 filter_channels,
-                 n_heads,
-                 n_layers,
-                 kernel_size,
-                 p_dropout=0.0,
-                 window_size=4,
-                 block_length=None,
-                 in_channels=None,
-                 prenet=True,
-                 pre_ln=True,
-                 ):
+    def __init__(
+        self,
+        n_vocab,
+        out_channels,
+        hidden_channels,
+        filter_channels,
+        n_heads,
+        n_layers,
+        kernel_size,
+        p_dropout=0.0,
+        window_size=4,
+        block_length=None,
+        in_channels=None,
+        prenet=True,
+        pre_ln=True,
+    ):
 
         super().__init__()
 
@@ -372,8 +460,14 @@ class RelTransformerEncoder(nn.Module):
         if prenet:
             if in_channels is None:
                 in_channels = hidden_channels
-            self.pre = ConvReluNorm(in_channels, in_channels, in_channels,
-                                    kernel_size=5, n_layers=3, p_dropout=0)
+            self.pre = ConvReluNorm(
+                in_channels,
+                in_channels,
+                in_channels,
+                kernel_size=5,
+                n_layers=3,
+                p_dropout=0,
+            )
         if in_channels is not None and in_channels != hidden_channels:
             self.encoder_inp_proj = nn.Conv1d(in_channels, hidden_channels, 1)
         self.encoder = Encoder(
@@ -401,7 +495,7 @@ class RelTransformerEncoder(nn.Module):
         if self.prenet:
             x = self.pre(x, x_mask)
             self.prenet_out = x.transpose(1, 2)
-        if hasattr(self, 'encoder_inp_proj'):
+        if hasattr(self, "encoder_inp_proj"):
             x = self.encoder_inp_proj(x) * x_mask
         x = self.encoder(x, x_mask, attn_mask)
         return x.transpose(1, 2)

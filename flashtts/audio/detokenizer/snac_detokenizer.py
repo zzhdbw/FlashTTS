@@ -12,19 +12,19 @@ from ..utils import get_dtype
 
 class SnacDeTokenizerModel(SnacBaseModel):
     def __init__(
-            self,
-            encoder_dim=64,
-            encoder_rates=[3, 3, 7, 7],
-            latent_dim=None,
-            decoder_dim=1536,
-            decoder_rates=[7, 7, 3, 3],
-            attn_window_size=32,
-            codebook_size=4096,
-            codebook_dim=8,
-            vq_strides=[8, 4, 2, 1],
-            noise=True,
-            depthwise=True,
-            **kwargs
+        self,
+        encoder_dim=64,
+        encoder_rates=[3, 3, 7, 7],
+        latent_dim=None,
+        decoder_dim=1536,
+        decoder_rates=[7, 7, 3, 3],
+        attn_window_size=32,
+        codebook_size=4096,
+        codebook_dim=8,
+        vq_strides=[8, 4, 2, 1],
+        noise=True,
+        depthwise=True,
+        **kwargs
     ):
         super().__init__()
 
@@ -54,11 +54,12 @@ class SnacDeTokenizerModel(SnacBaseModel):
 
 class SnacDeTokenizer:
     def __init__(
-            self,
-            model_path: str,
-            device: Literal["cpu", "cuda", "mps"] | str = "cpu",
-            batch_size: int = 32,
-            wait_timeout: float = 0.01):
+        self,
+        model_path: str,
+        device: Literal["cpu", "cuda", "mps"] | str = "cpu",
+        batch_size: int = 32,
+        wait_timeout: float = 0.01,
+    ):
         self.device = torch.device(device)
         self.model = SnacDeTokenizerModel.from_pretrained(
             model_path,
@@ -68,22 +69,20 @@ class SnacDeTokenizer:
         self._batch_processor = AsyncBatchEngine(
             processing_function=self.batch_detokenize_async,
             batch_size=batch_size,
-            wait_timeout=wait_timeout
+            wait_timeout=wait_timeout,
         )
 
     @torch.no_grad()
     def detokenize(
-            self,
-            codes: List[torch.Tensor],
+        self,
+        codes: List[torch.Tensor],
     ) -> torch.Tensor:
         with torch.amp.autocast(self.device_type, dtype=self.dtype):
-            output = self.model(
-                [code.to(self.device) for code in codes]
-            )
+            output = self.model([code.to(self.device) for code in codes])
         return output
 
     async def batch_detokenize_async(
-            self, requests: list[list[torch.Tensor]]
+        self, requests: list[list[torch.Tensor]]
     ) -> list[dict[str, torch.Tensor]]:
         outputs = []
         for codes in requests:
@@ -93,8 +92,8 @@ class SnacDeTokenizer:
             torch.cuda.empty_cache()
         return outputs
 
-    async def detokenize_async(self, request: list[torch.Tensor]) -> dict[str, torch.Tensor]:
-        output = await self._batch_processor.add_request(
-            single_input=request
-        )
+    async def detokenize_async(
+        self, request: list[torch.Tensor]
+    ) -> dict[str, torch.Tensor]:
+        output = await self._batch_processor.add_request(single_input=request)
         return output.get("feature")

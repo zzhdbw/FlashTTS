@@ -24,26 +24,30 @@ class AsyncMega3Engine(BaseEngine):
     _SUPPORT_SPEAK = True
 
     def __init__(
-            self,
-            model_path: str,
-            max_length: int = 32768,
-            llm_device: Literal["cpu", "cuda", "mps", "auto"] | str = "auto",
-            tokenizer_device: Literal["cpu", "cuda", "mps", "auto"] | str = "auto",
-            llm_tensorrt_path: Optional[str] = None,
-            backend: Literal["vllm", "llama-cpp", "sglang", "torch", "mlx-lm", "tensorrt-llm"] = "torch",
-            llm_attn_implementation: Optional[Literal["sdpa", "flash_attention_2", "eager"]] = None,
-            torch_dtype: Literal['float16', "bfloat16", 'float32', 'auto'] = "auto",
-            llm_gpu_memory_utilization: Optional[float] = 0.6,
-            cache_implementation: Optional[str] = None,
-            batch_size: int = 1,
-            llm_batch_size: int = 8,
-            seed: int = 0,
-            **kwargs):
+        self,
+        model_path: str,
+        max_length: int = 32768,
+        llm_device: Literal["cpu", "cuda", "mps", "auto"] | str = "auto",
+        tokenizer_device: Literal["cpu", "cuda", "mps", "auto"] | str = "auto",
+        llm_tensorrt_path: Optional[str] = None,
+        backend: Literal[
+            "vllm", "llama-cpp", "sglang", "torch", "mlx-lm", "tensorrt-llm"
+        ] = "torch",
+        llm_attn_implementation: Optional[
+            Literal["sdpa", "flash_attention_2", "eager"]
+        ] = None,
+        torch_dtype: Literal["float16", "bfloat16", "float32", "auto"] = "auto",
+        llm_gpu_memory_utilization: Optional[float] = 0.6,
+        cache_implementation: Optional[str] = None,
+        batch_size: int = 1,
+        llm_batch_size: int = 8,
+        seed: int = 0,
+        **kwargs,
+    ):
         self.seed = seed
         self.set_seed(seed)
         self.audio_tokenizer = MegaTokenizer(
-            model_path,
-            device=self._auto_detect_device(tokenizer_device)
+            model_path, device=self._auto_detect_device(tokenizer_device)
         )
         self._batch_size = batch_size
         super().__init__(
@@ -59,25 +63,26 @@ class AsyncMega3Engine(BaseEngine):
             llm_batch_size=llm_batch_size,
             stop_token_ids=[152468],
             seed=seed,
-            **kwargs
+            **kwargs,
         )
         self.speech_start_idx = self.generator.tokenizer.encode("<Reserved_TTS_0>")[0]
 
     def apply_prompt(self, text: str) -> list[int]:
-        prompt = '<BOT>' + text + '<BOS>'
-        txt_token = self.generator.tokenizer(prompt)['input_ids']
+        prompt = "<BOT>" + text + "<BOS>"
+        txt_token = self.generator.tokenizer(prompt)["input_ids"]
         input_ids = txt_token + [145 + self.speech_start_idx]
         return input_ids
 
     async def _generate(
-            self,
-            text: str,
-            temperature: float = 0.9,
-            top_k: int = 50,
-            top_p: float = 0.95,
-            repetition_penalty: float = 1.0,
-            max_tokens: int = 4096,
-            **kwargs):
+        self,
+        text: str,
+        temperature: float = 0.9,
+        top_k: int = 50,
+        top_p: float = 0.95,
+        repetition_penalty: float = 1.0,
+        max_tokens: int = 4096,
+        **kwargs,
+    ):
         prompt = self.apply_prompt(text)
         generated_output = await self.generator.async_generate(
             prompt=prompt,
@@ -87,18 +92,22 @@ class AsyncMega3Engine(BaseEngine):
             top_k=top_k,
             repetition_penalty=repetition_penalty,
             skip_special_tokens=False,
-            **kwargs
+            **kwargs,
         )
         outputs = generated_output.token_ids
         # process outputs
         ph_tokens = [
             token_id - self.speech_start_idx
-            for token_id in outputs if
-            (token_id >= self.speech_start_idx and token_id not in self.generator.stop_token_ids)]
+            for token_id in outputs
+            if (
+                token_id >= self.speech_start_idx
+                and token_id not in self.generator.stop_token_ids
+            )
+        ]
         ph_pred, tone_pred = split_ph(ph_tokens)
         return {
             "ph_pred": torch.LongTensor(ph_pred)[None, :],
-            "tone_pred": torch.LongTensor(tone_pred)[None, :]
+            "tone_pred": torch.LongTensor(tone_pred)[None, :],
         }
 
     def combine_audio_segments(self, segments, crossfade_duration=0.16):
@@ -110,8 +119,8 @@ class AsyncMega3Engine(BaseEngine):
                 combined_audio = segment
             else:
                 overlap = (
-                        combined_audio[-window_length:] * hanning_window[window_length:]
-                        + segment[:window_length] * hanning_window[:window_length]
+                    combined_audio[-window_length:] * hanning_window[window_length:]
+                    + segment[:window_length] * hanning_window[:window_length]
                 )
                 combined_audio = np.concatenate(
                     [combined_audio[:-window_length], overlap, segment[window_length:]]
@@ -119,39 +128,43 @@ class AsyncMega3Engine(BaseEngine):
         return combined_audio
 
     async def _clone_voice_from_ref(
-            self,
-            text: str,
-            resource_context,
-            temperature: float = 0.9,
-            top_k: int = 50,
-            top_p: float = 0.95,
-            repetition_penalty: float = 1.0,
-            max_tokens: int = 4096,
-            length_threshold: int = 50,
-            window_size: int = 50,
-            split_fn: Optional[Callable[[str], list[str]]] = None,
-            time_step: int = 32,
-            p_w: float = 1.6,
-            t_w: float = 2.5,
-            **kwargs
+        self,
+        text: str,
+        resource_context,
+        temperature: float = 0.9,
+        top_k: int = 50,
+        top_p: float = 0.95,
+        repetition_penalty: float = 1.0,
+        max_tokens: int = 4096,
+        length_threshold: int = 50,
+        window_size: int = 50,
+        split_fn: Optional[Callable[[str], list[str]]] = None,
+        time_step: int = 32,
+        p_w: float = 1.6,
+        t_w: float = 2.5,
+        **kwargs,
     ) -> np.ndarray:
         segments = self.preprocess_text(
             text,
             window_size=window_size,
             split_fn=split_fn,
-            length_threshold=length_threshold
+            length_threshold=length_threshold,
         )
         semaphore = asyncio.Semaphore(self._batch_size)  # 限制并发数，避免超长文本卡死
         limit_generate = limit_concurrency(semaphore)(self._generate)
         tasks = [
-            asyncio.create_task(limit_generate(
-                segment,
-                temperature=temperature,
-                top_k=top_k,
-                top_p=top_p,
-                repetition_penalty=repetition_penalty,
-                max_tokens=max_tokens,
-                **kwargs)) for segment in segments
+            asyncio.create_task(
+                limit_generate(
+                    segment,
+                    temperature=temperature,
+                    top_k=top_k,
+                    top_p=top_p,
+                    repetition_penalty=repetition_penalty,
+                    max_tokens=max_tokens,
+                    **kwargs,
+                )
+            )
+            for segment in segments
         ]
         # 并发执行所有任务
         generate_results = await asyncio.gather(*tasks)
@@ -160,24 +173,26 @@ class AsyncMega3Engine(BaseEngine):
 
         for seg_i, generate_result in enumerate(generate_results):
             mel2ph_pred = self.audio_tokenizer.dur_predict(
-                ctx_dur_tokens=resource_context['ctx_dur_tokens'],
-                incremental_state_dur_prompt=resource_context['incremental_state_dur_prompt'],
-                ph_pred=generate_result['ph_pred'],
-                tone_pred=generate_result['tone_pred'],
-                dur_disturb=kwargs.get('dur_disturb', 0.1),
-                dur_alpha=kwargs.get('dur_alpha', 1.0),
+                ctx_dur_tokens=resource_context["ctx_dur_tokens"],
+                incremental_state_dur_prompt=resource_context[
+                    "incremental_state_dur_prompt"
+                ],
+                ph_pred=generate_result["ph_pred"],
+                tone_pred=generate_result["tone_pred"],
+                dur_disturb=kwargs.get("dur_disturb", 0.1),
+                dur_alpha=kwargs.get("dur_alpha", 1.0),
                 is_first=(seg_i == 0),
                 is_final=(seg_i == len(segments) - 1),
             )
             wav_pred = self.audio_tokenizer.decode(
-                mel2ph_ref=resource_context['mel2ph_ref'],
+                mel2ph_ref=resource_context["mel2ph_ref"],
                 mel2ph_pred=mel2ph_pred,
-                ph_ref=resource_context['ph_ref'],
-                tone_ref=resource_context['tone_ref'],
-                ph_pred=generate_result['ph_pred'],
-                tone_pred=generate_result['tone_pred'],
-                vae_latent=resource_context['vae_latent'],
-                loudness_prompt=resource_context['loudness_prompt'],
+                ph_ref=resource_context["ph_ref"],
+                tone_ref=resource_context["tone_ref"],
+                ph_pred=generate_result["ph_pred"],
+                tone_pred=generate_result["tone_pred"],
+                vae_latent=resource_context["vae_latent"],
+                loudness_prompt=resource_context["loudness_prompt"],
                 time_step=time_step,
                 p_w=p_w,
                 t_w=t_w,
@@ -190,27 +205,33 @@ class AsyncMega3Engine(BaseEngine):
         return audio
 
     async def clone_voice_async(
-            self,
-            text: str,
-            reference_audio: tuple,
-            reference_text: Optional[str] = None,
-            pitch: Optional[Literal["very_low", "low", "moderate", "high", "very_high"]] = None,
-            speed: Optional[Literal["very_low", "low", "moderate", "high", "very_high"]] = None,
-            temperature: float = 0.9,
-            top_k: int = 50,
-            top_p: float = 0.95,
-            repetition_penalty: float = 1.0,
-            max_tokens: int = 4096,
-            length_threshold: int = 50,
-            window_size: int = 50,
-            split_fn: Optional[Callable[[str], list[str]]] = None,
-            time_step: int = 32,
-            p_w: float = 1.6,
-            t_w: float = 2.5,
-            **kwargs) -> np.ndarray:
+        self,
+        text: str,
+        reference_audio: tuple,
+        reference_text: Optional[str] = None,
+        pitch: Optional[
+            Literal["very_low", "low", "moderate", "high", "very_high"]
+        ] = None,
+        speed: Optional[
+            Literal["very_low", "low", "moderate", "high", "very_high"]
+        ] = None,
+        temperature: float = 0.9,
+        top_k: int = 50,
+        top_p: float = 0.95,
+        repetition_penalty: float = 1.0,
+        max_tokens: int = 4096,
+        length_threshold: int = 50,
+        window_size: int = 50,
+        split_fn: Optional[Callable[[str], list[str]]] = None,
+        time_step: int = 32,
+        p_w: float = 1.6,
+        t_w: float = 2.5,
+        **kwargs,
+    ) -> np.ndarray:
         self.set_seed(seed=self.seed)
-        assert len(
-            reference_audio) == 2, "The reference audio for MegaTTS3 requires two files to be provided: a WAV audio file and an encoded NPY file."
+        assert (
+            len(reference_audio) == 2
+        ), "The reference audio for MegaTTS3 requires two files to be provided: a WAV audio file and an encoded NPY file."
         if pitch is not None or speed is not None:
             logger.warning("MegaTTS does not support adjusting pitch and speed.")
         resource_context = self.audio_tokenizer.preprocess(
@@ -231,13 +252,16 @@ class AsyncMega3Engine(BaseEngine):
             time_step=time_step,
             p_w=p_w,
             t_w=t_w,
-            **kwargs
+            **kwargs,
         )
         return audio
 
-    async def _add_speaker(self, name: str, audio: tuple, reference_text: Optional[str] = None):
-        assert len(
-            audio) == 2, "The reference audio for MegaTTS3 requires two files to be provided: a WAV audio file and an encoded NPY file."
+    async def _add_speaker(
+        self, name: str, audio: tuple, reference_text: Optional[str] = None
+    ):
+        assert (
+            len(audio) == 2
+        ), "The reference audio for MegaTTS3 requires two files to be provided: a WAV audio file and an encoded NPY file."
 
         resource_context = self.audio_tokenizer.preprocess(
             audio=audio[0],
@@ -246,23 +270,28 @@ class AsyncMega3Engine(BaseEngine):
         self.speakers[name] = resource_context
 
     async def speak_async(
-            self,
-            text: str,
-            name: Optional[str] = None,
-            pitch: Optional[Literal["very_low", "low", "moderate", "high", "very_high"]] = None,
-            speed: Optional[Literal["very_low", "low", "moderate", "high", "very_high"]] = None,
-            temperature: float = 0.9,
-            top_k: int = 50,
-            top_p: float = 0.95,
-            repetition_penalty: float = 1.0,
-            max_tokens: int = 4096,
-            length_threshold: int = 50,
-            window_size: int = 50,
-            split_fn: Optional[Callable[[str], list[str]]] = None,
-            time_step: int = 32,
-            p_w: float = 1.6,
-            t_w: float = 2.5,
-            **kwargs) -> np.ndarray:
+        self,
+        text: str,
+        name: Optional[str] = None,
+        pitch: Optional[
+            Literal["very_low", "low", "moderate", "high", "very_high"]
+        ] = None,
+        speed: Optional[
+            Literal["very_low", "low", "moderate", "high", "very_high"]
+        ] = None,
+        temperature: float = 0.9,
+        top_k: int = 50,
+        top_p: float = 0.95,
+        repetition_penalty: float = 1.0,
+        max_tokens: int = 4096,
+        length_threshold: int = 50,
+        window_size: int = 50,
+        split_fn: Optional[Callable[[str], list[str]]] = None,
+        time_step: int = 32,
+        p_w: float = 1.6,
+        t_w: float = 2.5,
+        **kwargs,
+    ) -> np.ndarray:
         if pitch is not None or speed is not None:
             logger.warning("MegaTTS does not support adjusting pitch and speed.")
         if name is None and len(self.speakers) > 0:
@@ -270,7 +299,7 @@ class AsyncMega3Engine(BaseEngine):
         self.set_seed(seed=self.seed)
         speaker_data = await self.get_speaker(name)
         if speaker_data is None:
-            raise ValueError(F'The role "{name}" does not exist.')
+            raise ValueError(f'The role "{name}" does not exist.')
         audio = await self._clone_voice_from_ref(
             text=text,
             resource_context=speaker_data,
@@ -285,6 +314,6 @@ class AsyncMega3Engine(BaseEngine):
             time_step=time_step,
             p_w=p_w,
             t_w=t_w,
-            **kwargs
+            **kwargs,
         )
         return audio

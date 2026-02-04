@@ -24,11 +24,11 @@ class BatchProcessor:
     """
 
     def __init__(
-            self,
-            processing_function: Callable[[List[Any]], Awaitable[List[Any]]],
-            num_workers: int,
-            batch_size: int,
-            wait_timeout: float = 0.05
+        self,
+        processing_function: Callable[[List[Any]], Awaitable[List[Any]]],
+        num_workers: int,
+        batch_size: int,
+        wait_timeout: float = 0.05,
     ) -> None:
         """Initialize the BatchProcessor with the given processing function, number of workers, and batch size.
 
@@ -79,7 +79,7 @@ class BatchProcessor:
                 try:
                     results = await self.processing_function(all_requests)
 
-                    for (future, result) in zip(futures, results):
+                    for future, result in zip(futures, results):
                         future.set_result(result)
                 except Exception as e:
                     for future in futures:
@@ -109,10 +109,10 @@ class BatchProcessor:
 class AsyncBatchEngine:
 
     def __init__(
-            self,
-            processing_function: Callable[[List[Any]], Awaitable[List[Any]]],
-            batch_size: int = 32,
-            wait_timeout: float = 0.01,
+        self,
+        processing_function: Callable[[List[Any]], Awaitable[List[Any]]],
+        batch_size: int = 32,
+        wait_timeout: float = 0.01,
     ):
         """
         Initialize the AsyncBatchEngine with a processing function, number of workers, and batch size.
@@ -136,7 +136,7 @@ class AsyncBatchEngine:
             processing_function=self._processing_function,
             batch_size=self._batch_size,
             wait_timeout=self._wait_timeout,
-            num_workers=1
+            num_workers=1,
         )
         self._is_running = True
 
@@ -176,7 +176,4 @@ class AsyncBatchEngine:
             request_id = str(uuid.uuid4())  # Assign a unique ID if not provided
         future = await self._batch_processor.add_request(single_input=single_input)  # type: ignore
         result = await future
-        return dict(
-            request_id=request_id,
-            feature=result
-        )
+        return dict(request_id=request_id, feature=result)

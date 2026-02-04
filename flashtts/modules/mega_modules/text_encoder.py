@@ -25,7 +25,7 @@ PAD = "<pad>"
 EOS = "<EOS>"
 UNK = "<UNK>"
 SEG = "|"
-PUNCS = '!,.?;:'
+PUNCS = "!,.?;:"
 RESERVED_TOKENS = [PAD, EOS, UNK]
 NUM_RESERVED_TOKENS = len(RESERVED_TOKENS)
 PAD_ID = RESERVED_TOKENS.index(PAD)  # Normally 0
@@ -42,7 +42,7 @@ else:
 # '\\' is converted to '\'
 # '\213;' is converted to unichr(213)
 _UNESCAPE_REGEX = re.compile(r"\\u|\\\\|\\([0-9]+);")
-_ESCAPE_CHARS = set(u"\\_u;0123456789")
+_ESCAPE_CHARS = set("\\_u;0123456789")
 
 
 def strip_ids(ids, ids_to_strip):
@@ -125,12 +125,14 @@ class TextEncoder(object):
 class TokenTextEncoder(TextEncoder):
     """Encoder based on a user-supplied vocabulary (file or list)."""
 
-    def __init__(self,
-                 vocab_filename,
-                 reverse=False,
-                 vocab_list=None,
-                 replace_oov=None,
-                 num_reserved_ids=NUM_RESERVED_TOKENS):
+    def __init__(
+        self,
+        vocab_filename,
+        reverse=False,
+        vocab_list=None,
+        replace_oov=None,
+        num_reserved_ids=NUM_RESERVED_TOKENS,
+    ):
         """Initialize from a file or list, one token per line.
 
         Handling of reserved tokens works as follows:
@@ -160,7 +162,9 @@ class TokenTextEncoder(TextEncoder):
         self.pad_index = self.token_to_id[PAD]
         self.eos_index = self.token_to_id[EOS]
         self.unk_index = self.token_to_id[UNK]
-        self.seg_index = self.token_to_id[SEG] if SEG in self.token_to_id else self.eos_index
+        self.seg_index = (
+            self.token_to_id[SEG] if SEG in self.token_to_id else self.eos_index
+        )
 
     def encode(self, s):
         """Converts a space-separated string of tokens to a list of ids."""
@@ -170,8 +174,7 @@ class TokenTextEncoder(TextEncoder):
         else:
             tokens = s
         if self._replace_oov is not None:
-            tokens = [t if t in self.token_to_id else self._replace_oov
-                      for t in tokens]
+            tokens = [t if t in self.token_to_id else self._replace_oov for t in tokens]
         ret = [self.token_to_id[tok] for tok in tokens]
         return ret[::-1] if self._reverse else ret
 
@@ -241,7 +244,8 @@ class TokenTextEncoder(TextEncoder):
             non_reserved_start_index = len(RESERVED_TOKENS)
 
         self.id_to_token.update(
-            enumerate(token_generator, start=non_reserved_start_index))
+            enumerate(token_generator, start=non_reserved_start_index)
+        )
 
         # _token_to_id is the reverse of _id_to_token
         self.token_to_id = dict((v, k) for k, v in six.iteritems(self.id_to_token))
@@ -277,8 +281,8 @@ class TokenTextEncoder(TextEncoder):
 
 def build_token_encoder(token_list_file):
     token_list = json.load(open(token_list_file))
-    return TokenTextEncoder(None, vocab_list=token_list, replace_oov='<UNK>')
+    return TokenTextEncoder(None, vocab_list=token_list, replace_oov="<UNK>")
 
 
 def is_sil_phoneme(p):
-    return p == '' or not p[0].isalpha() or p == 'sil' or p == 'sp' or p == 'XX'
+    return p == "" or not p[0].isalpha() or p == "sil" or p == "sp" or p == "XX"

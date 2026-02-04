@@ -24,9 +24,7 @@ async def list_models(raw_request: Request):
     state_info: StateInfo = raw_request.app.state.state_info
 
     # Create standard model list
-    models = ModelList(data=[
-        ModelCard(id=state_info.model_name)
-    ])
+    models = ModelList(data=[ModelCard(id=state_info.model_name)])
 
     return JSONResponse(content=models.model_dump())
 
@@ -77,10 +75,7 @@ def float_to_speed_label(x: float) -> str:
 
 
 @openai_router.post("/audio/speech")
-async def create_speech(
-        request: OpenAISpeechRequest,
-        client_request: Request
-):
+async def create_speech(request: OpenAISpeechRequest, client_request: Request):
     engine: AutoEngine = client_request.app.state.engine
     state_info: StateInfo = client_request.app.state.state_info
     if request.model not in [state_info.model_name]:
@@ -111,54 +106,55 @@ async def create_speech(
         repetition_penalty=request.repetition_penalty,
         max_tokens=request.max_tokens,
         length_threshold=request.length_threshold,
-        window_size=request.window_size
+        window_size=request.window_size,
     )
-    if engine.engine_name.lower() == 'spark':
-        api_inputs['pitch'] = float_to_speed_label(request.pitch)
-        api_inputs['speed'] = float_to_speed_label(request.speed)
+    if engine.engine_name.lower() == "spark":
+        api_inputs["pitch"] = float_to_speed_label(request.pitch)
+        api_inputs["speed"] = float_to_speed_label(request.speed)
 
     if engine._SUPPORT_CLONE and request.voice not in engine.list_speakers():
         # 如果传入的voice为url或者base64，将启动语音克隆，暂且不支持mega3
-        if engine.engine_name == 'mega':
-            err_msg = ("Openai router does not currently support the voice cloning function of mega tts, "
-                       "because the model requires an additional `latent_file`.")
+        if engine.engine_name == "mega":
+            err_msg = (
+                "Openai router does not currently support the voice cloning function of mega tts, "
+                "because the model requires an additional `latent_file`."
+            )
             logger.error(err_msg)
             raise HTTPException(status_code=400, detail={"error": err_msg})
         ref_audio = await load_base64_or_url(request.voice)
-        api_inputs['reference_audio'] = ref_audio
+        api_inputs["reference_audio"] = ref_audio
 
         if request.stream:
             tts_fn = engine.clone_voice_stream_async
         else:
             tts_fn = engine.clone_voice_async
     else:
-        api_inputs['name'] = request.voice
+        api_inputs["name"] = request.voice
         # 判断是否需要保存音色
-        if state_info.fix_voice and engine.engine_name == 'spark':
-            api_inputs['name'] = api_inputs['name'] or "female"
+        if state_info.fix_voice and engine.engine_name == "spark":
+            api_inputs["name"] = api_inputs["name"] or "female"
             if state_info.acoustic_tokens is None:
                 state_info.init_acoustic_tokens()
-            if api_inputs['name'] in ['female', 'male']:
+            if api_inputs["name"] in ["female", "male"]:
                 # 只有这两个内置角色需要持久化音色
-                if state_info.acoustic_tokens[api_inputs['name']] is None:
-                    api_inputs['return_acoustic_tokens'] = True
+                if state_info.acoustic_tokens[api_inputs["name"]] is None:
+                    api_inputs["return_acoustic_tokens"] = True
                 else:
-                    api_inputs['return_acoustic_tokens'] = False
-                    api_inputs['acoustic_tokens'] = state_info.acoustic_tokens[api_inputs['name']]
+                    api_inputs["return_acoustic_tokens"] = False
+                    api_inputs["acoustic_tokens"] = state_info.acoustic_tokens[
+                        api_inputs["name"]
+                    ]
         if request.stream:
             tts_fn = engine.speak_stream_async
         else:
             tts_fn = engine.speak_async
 
-    audio_writer = StreamingAudioWriter(request.response_format, sample_rate=engine.SAMPLE_RATE)
+    audio_writer = StreamingAudioWriter(
+        request.response_format, sample_rate=engine.SAMPLE_RATE
+    )
     if request.stream:
         return StreamingResponse(
-            generate_audio_stream(
-                tts_fn,
-                api_inputs,
-                audio_writer,
-                client_request
-            ),
+            generate_audio_stream(tts_fn, api_inputs, audio_writer, client_request),
             media_type=content_type,
             headers={
                 "Content-Disposition": f"attachment; filename=speech.{request.response_format}",
@@ -174,12 +170,10 @@ async def create_speech(
         }
         try:
             # Generate complete audio using public interface
-            audio_data = await tts_fn(
-                **api_inputs
-            )
+            audio_data = await tts_fn(**api_inputs)
             if isinstance(audio_data, tuple):
                 if state_info.acoustic_tokens is not None:
-                    state_info.acoustic_tokens[api_inputs['name']] = audio_data[1]
+                    state_info.acoustic_tokens[api_inputs["name"]] = audio_data[1]
                 audio_data = audio_data[0]
         except Exception as e:
             logger.warning(f"Voice synthesis for the role failed: {e}")

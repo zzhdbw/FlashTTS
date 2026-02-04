@@ -13,14 +13,16 @@ __all__ = ["SglangGenerator"]
 
 
 class SglangGenerator(BaseLLM):
-    def __init__(self,
-                 model_path: str,
-                 max_length: int = 32768,
-                 gpu_memory_utilization: Optional[float] = None,
-                 device: str = "cuda",
-                 stop_tokens: Optional[list[str]] = None,
-                 stop_token_ids: Optional[List[int]] = None,
-                 **kwargs):
+    def __init__(
+        self,
+        model_path: str,
+        max_length: int = 32768,
+        gpu_memory_utilization: Optional[float] = None,
+        device: str = "cuda",
+        stop_tokens: Optional[list[str]] = None,
+        stop_token_ids: Optional[List[int]] = None,
+        **kwargs
+    ):
         engine_kwargs = dict(
             model_path=model_path,
             context_length=max_length,
@@ -33,9 +35,7 @@ class SglangGenerator(BaseLLM):
             device=device,
             **kwargs
         )
-        self.model = Engine(
-            **engine_kwargs
-        )
+        self.model = Engine(**engine_kwargs)
         super(SglangGenerator, self).__init__(
             tokenizer=model_path,
             max_length=max_length,
@@ -44,15 +44,16 @@ class SglangGenerator(BaseLLM):
         )
 
     async def _generate(
-            self,
-            prompt_ids: list[int],
-            max_tokens: int = 1024,
-            temperature: float = 0.9,
-            top_p: float = 0.9,
-            top_k: int = 50,
-            repetition_penalty: float = 1.0,
-            skip_special_tokens: bool = True,
-            **kwargs) -> GenerationResponse:
+        self,
+        prompt_ids: list[int],
+        max_tokens: int = 1024,
+        temperature: float = 0.9,
+        top_p: float = 0.9,
+        top_k: int = 50,
+        repetition_penalty: float = 1.0,
+        skip_special_tokens: bool = True,
+        **kwargs
+    ) -> GenerationResponse:
         obj = GenerateReqInput(
             input_ids=prompt_ids,
             sampling_params={
@@ -64,7 +65,7 @@ class SglangGenerator(BaseLLM):
                 "top_k": top_k,
                 "repetition_penalty": repetition_penalty,
                 "skip_special_tokens": skip_special_tokens,
-                **kwargs
+                **kwargs,
             },
             stream=False,
         )
@@ -72,14 +73,14 @@ class SglangGenerator(BaseLLM):
         ret = await generator.__anext__()
 
         if isinstance(ret, dict) and "msg" in ret:
-            raise ValueError(ret['msg'])
+            raise ValueError(ret["msg"])
         choices = []
 
         if isinstance(ret, dict):
             ret = [ret]
 
         for idx, ret_item in enumerate(ret):
-            choices.append(ret_item['text'])
+            choices.append(ret_item["text"])
 
         return GenerationResponse(
             text=choices[0],
@@ -87,15 +88,15 @@ class SglangGenerator(BaseLLM):
         )
 
     async def _stream_generate(
-            self,
-            prompt_ids: list[int],
-            max_tokens: int = 1024,
-            temperature: float = 0.9,
-            top_p: float = 0.9,
-            top_k: int = 50,
-            repetition_penalty: float = 1.0,
-            skip_special_tokens: bool = True,
-            **kwargs
+        self,
+        prompt_ids: list[int],
+        max_tokens: int = 1024,
+        temperature: float = 0.9,
+        top_p: float = 0.9,
+        top_k: int = 50,
+        repetition_penalty: float = 1.0,
+        skip_special_tokens: bool = True,
+        **kwargs
     ) -> AsyncIterator[GenerationResponse]:
         obj = GenerateReqInput(
             input_ids=prompt_ids,
@@ -108,7 +109,7 @@ class SglangGenerator(BaseLLM):
                 "top_k": top_k,
                 "repetition_penalty": repetition_penalty,
                 "skip_special_tokens": skip_special_tokens,
-                **kwargs
+                **kwargs,
             },
             stream=True,
         )
@@ -117,9 +118,9 @@ class SglangGenerator(BaseLLM):
         previous_texts = ""
         complete_tokens = []
         async for data in generator:
-            cur_token_ids = self.tokenizer.encode(data['text'])
-            delta_tokens = cur_token_ids[len(complete_tokens):]
-            delta_text = data["text"][len(previous_texts):]
+            cur_token_ids = self.tokenizer.encode(data["text"])
+            delta_tokens = cur_token_ids[len(complete_tokens) :]
+            delta_text = data["text"][len(previous_texts) :]
             previous_texts = data["text"]
             complete_tokens = cur_token_ids
 

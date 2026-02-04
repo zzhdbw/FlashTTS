@@ -51,7 +51,7 @@ class Permute(nn.Module):
 
 def Embedding(num_embeddings, embedding_dim, padding_idx=None):
     m = nn.Embedding(num_embeddings, embedding_dim, padding_idx=padding_idx)
-    nn.init.normal_(m.weight, mean=0, std=embedding_dim ** -0.5)
+    nn.init.normal_(m.weight, mean=0, std=embedding_dim**-0.5)
     if padding_idx is not None:
         nn.init.constant_(m.weight[padding_idx], 0)
     return m
@@ -87,10 +87,12 @@ class LengthRegulator(torch.nn.Module):
             dur = dur * (1 - dur_padding.long())
         token_idx = torch.arange(1, dur.shape[1] + 1)[None, :, None].to(dur.device)
         dur_cumsum = torch.cumsum(dur, 1)
-        dur_cumsum_prev = F.pad(dur_cumsum, [1, -1], mode='constant', value=0)
+        dur_cumsum_prev = F.pad(dur_cumsum, [1, -1], mode="constant", value=0)
 
         pos_idx = torch.arange(dur.sum(-1).max())[None, None].to(dur.device)
-        token_mask = (pos_idx >= dur_cumsum_prev[:, :, None]) & (pos_idx < dur_cumsum[:, :, None])
+        token_mask = (pos_idx >= dur_cumsum_prev[:, :, None]) & (
+            pos_idx < dur_cumsum[:, :, None]
+        )
         mel2token = (token_idx * token_mask.long()).sum(1)
         return mel2token
 

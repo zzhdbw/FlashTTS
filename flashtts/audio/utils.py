@@ -38,7 +38,7 @@ def gpu_supports_fp16() -> bool:
 
 
 def get_dtype(device: str):
-    if device.startswith('cuda') and gpu_supports_fp16():
+    if device.startswith("cuda") and gpu_supports_fp16():
         return torch.float16
     else:
         return torch.float32

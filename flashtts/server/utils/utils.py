@@ -34,7 +34,9 @@ async def load_base64_or_url(audio):
             audio_bytes = base64.b64decode(audio)
         except Exception as e:
             logger.warning("无效的 base64 音频数据: " + str(e))
-            raise HTTPException(status_code=400, detail="无效的 base64 音频数据: " + str(e))
+            raise HTTPException(
+                status_code=400, detail="无效的 base64 音频数据: " + str(e)
+            )
     # 利用 BytesIO 包装字节数据，然后使用 soundfile 读取为 numpy 数组
     try:
         bytes_io = io.BytesIO(audio_bytes)
@@ -67,7 +69,9 @@ async def load_latent_file(latent_file):
     return latent_io
 
 
-async def generate_audio_stream(generator, data, writer: StreamingAudioWriter, raw_request):
+async def generate_audio_stream(
+    generator, data, writer: StreamingAudioWriter, raw_request
+):
     state_info: StateInfo = raw_request.app.state.state_info
 
     try:
@@ -76,9 +80,13 @@ async def generate_audio_stream(generator, data, writer: StreamingAudioWriter, r
             if await raw_request.is_disconnected():
                 logger.info("Client disconnected, stopping audio generation")
                 break
-            if state_info.fix_voice and data.get("return_acoustic_tokens", False) and isinstance(chunk, SparkAcousticTokens):
-                if state_info.acoustic_tokens[data['name']] is None:
-                    state_info.acoustic_tokens[data['name']] = chunk
+            if (
+                state_info.fix_voice
+                and data.get("return_acoustic_tokens", False)
+                and isinstance(chunk, SparkAcousticTokens)
+            ):
+                if state_info.acoustic_tokens[data["name"]] is None:
+                    state_info.acoustic_tokens[data["name"]] = chunk
             else:
                 audio = writer.write_chunk(chunk, finalize=False)
                 yield audio
@@ -88,9 +96,13 @@ async def generate_audio_stream(generator, data, writer: StreamingAudioWriter, r
             writer.close()
         except:
             pass
-        logger.error(f"An error occurred during the streaming audio generation: {str(e)}")
-        raise HTTPException(status_code=500,
-                            detail=f"An error occurred during the streaming audio generation: {str(e)}")
+        logger.error(
+            f"An error occurred during the streaming audio generation: {str(e)}"
+        )
+        raise HTTPException(
+            status_code=500,
+            detail=f"An error occurred during the streaming audio generation: {str(e)}",
+        )
     finally:
         try:
             writer.close()
@@ -109,7 +121,10 @@ def generate_audio(audio: np.ndarray, writer: StreamingAudioWriter):
         except:
             pass
         logger.error(f"An error occurred while writing the audio: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"An error occurred while writing the audio: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"An error occurred while writing the audio: {str(e)}",
+        )
     try:
         writer.close()
     except:

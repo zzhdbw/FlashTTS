@@ -44,7 +44,7 @@ class SinusoidalPositionalEmbedding(nn.Module):
             embedding_dim,
             padding_idx,
         )
-        self.register_buffer('_float_tensor', torch.FloatTensor(1))
+        self.register_buffer("_float_tensor", torch.FloatTensor(1))
 
     @staticmethod
     def get_embedding(num_embeddings, embedding_dim, padding_idx=None):
@@ -56,8 +56,12 @@ class SinusoidalPositionalEmbedding(nn.Module):
         half_dim = embedding_dim // 2
         emb = math.log(10000) / (half_dim - 1)
         emb = torch.exp(torch.arange(half_dim, dtype=torch.float) * -emb)
-        emb = torch.arange(num_embeddings, dtype=torch.float).unsqueeze(1) * emb.unsqueeze(0)
-        emb = torch.cat([torch.sin(emb), torch.cos(emb)], dim=1).view(num_embeddings, -1)
+        emb = torch.arange(num_embeddings, dtype=torch.float).unsqueeze(
+            1
+        ) * emb.unsqueeze(0)
+        emb = torch.cat([torch.sin(emb), torch.cos(emb)], dim=1).view(
+            num_embeddings, -1
+        )
         if embedding_dim % 2 == 1:
             # zero pad
             emb = torch.cat([emb, torch.zeros(num_embeddings, 1)], dim=1)
@@ -65,7 +69,9 @@ class SinusoidalPositionalEmbedding(nn.Module):
             emb[padding_idx, :] = 0
         return emb
 
-    def forward(self, input, incremental_state=None, timestep=None, positions=None, **kwargs):
+    def forward(
+        self, input, incremental_state=None, timestep=None, positions=None, **kwargs
+    ):
         """Input is expected to be of size [bsz x seqlen]."""
         bsz, seq_len = input.shape[:2]
         max_pos = self.padding_idx + 1 + seq_len
@@ -83,8 +89,14 @@ class SinusoidalPositionalEmbedding(nn.Module):
             pos = timestep.view(-1)[0] + 1 if timestep is not None else seq_len
             return self.weights[self.padding_idx + pos, :].expand(bsz, 1, -1)
 
-        positions = make_positions(input, self.padding_idx) if positions is None else positions
-        return self.weights.index_select(0, positions.view(-1)).view(bsz, seq_len, -1).detach()
+        positions = (
+            make_positions(input, self.padding_idx) if positions is None else positions
+        )
+        return (
+            self.weights.index_select(0, positions.view(-1))
+            .view(bsz, seq_len, -1)
+            .detach()
+        )
 
     def max_positions(self):
         """Maximum number of supported positions."""
@@ -97,12 +109,12 @@ class RotaryEmbeddings(nn.Module):
     theta: torch.Tensor
 
     def __init__(
-            self,
-            width: int,
-            *,
-            seq_len: int = 40000,
-            base: int = 10000,
-            device: Optional[torch.device] = None,
+        self,
+        width: int,
+        *,
+        seq_len: int = 40000,
+        base: int = 10000,
+        device: Optional[torch.device] = None,
     ):
         """Rotary embeddings (Su et al., 2021) layer. The rotary embedding
         will be precomputed for up to 'seq _len' positions. The embedding
@@ -207,27 +219,48 @@ class RotaryEmbeddings(nn.Module):
 
 
 class RotMultiheadAttention(MultiheadAttention):
-    def __init__(self, embed_dim, num_heads, kdim=None, vdim=None, dropout=0., bias=True,
-                 add_bias_kv=False, add_zero_attn=False, self_attention=False,
-                 encoder_decoder_attention=False):
-        super().__init__(embed_dim, num_heads, kdim=kdim, vdim=vdim, dropout=dropout, bias=bias,
-                         add_bias_kv=add_bias_kv, add_zero_attn=add_zero_attn, self_attention=self_attention,
-                         encoder_decoder_attention=encoder_decoder_attention)
+    def __init__(
+        self,
+        embed_dim,
+        num_heads,
+        kdim=None,
+        vdim=None,
+        dropout=0.0,
+        bias=True,
+        add_bias_kv=False,
+        add_zero_attn=False,
+        self_attention=False,
+        encoder_decoder_attention=False,
+    ):
+        super().__init__(
+            embed_dim,
+            num_heads,
+            kdim=kdim,
+            vdim=vdim,
+            dropout=dropout,
+            bias=bias,
+            add_bias_kv=add_bias_kv,
+            add_zero_attn=add_zero_attn,
+            self_attention=self_attention,
+            encoder_decoder_attention=encoder_decoder_attention,
+        )
         self.rotary_embeds = RotaryEmbeddings(width=embed_dim // num_heads)
 
     def forward(
-            self,
-            query, key, value,
-            spk_pos_ids_flat=None,
-            key_padding_mask=None,
-            incremental_state=None,
-            need_weights=True,
-            static_kv=False,
-            attn_mask=None,
-            before_softmax=False,
-            need_head_weights=False,
-            enc_dec_attn_constraint_mask=None,
-            reset_attn_weight=None
+        self,
+        query,
+        key,
+        value,
+        spk_pos_ids_flat=None,
+        key_padding_mask=None,
+        incremental_state=None,
+        need_weights=True,
+        static_kv=False,
+        attn_mask=None,
+        before_softmax=False,
+        need_head_weights=False,
+        enc_dec_attn_constraint_mask=None,
+        reset_attn_weight=None,
     ):
         """Input shape: Time x Batch x Channel
 
@@ -255,7 +288,7 @@ class RotMultiheadAttention(MultiheadAttention):
 
         if incremental_state is not None:
             saved_state = self._get_input_buffer(incremental_state)
-            if 'prev_key' in saved_state:
+            if "prev_key" in saved_state:
                 # previous time steps are cached - no need to recompute
                 # key and value if they are static
                 if static_kv:
@@ -287,35 +320,59 @@ class RotMultiheadAttention(MultiheadAttention):
             k = torch.cat([k, self.bias_k.repeat(1, bsz, 1)])
             v = torch.cat([v, self.bias_v.repeat(1, bsz, 1)])
             if attn_mask is not None:
-                attn_mask = torch.cat([attn_mask, attn_mask.new_zeros(attn_mask.size(0), 1)], dim=1)
+                attn_mask = torch.cat(
+                    [attn_mask, attn_mask.new_zeros(attn_mask.size(0), 1)], dim=1
+                )
             if key_padding_mask is not None:
                 key_padding_mask = torch.cat(
-                    [key_padding_mask, key_padding_mask.new_zeros(key_padding_mask.size(0), 1)], dim=1)
+                    [
+                        key_padding_mask,
+                        key_padding_mask.new_zeros(key_padding_mask.size(0), 1),
+                    ],
+                    dim=1,
+                )
 
-        q = q.contiguous().view(tgt_len, bsz * self.num_heads, self.head_dim).transpose(0, 1)
+        q = (
+            q.contiguous()
+            .view(tgt_len, bsz * self.num_heads, self.head_dim)
+            .transpose(0, 1)
+        )
         if k is not None:
-            k = k.contiguous().view(-1, bsz * self.num_heads, self.head_dim).transpose(0, 1)
+            k = (
+                k.contiguous()
+                .view(-1, bsz * self.num_heads, self.head_dim)
+                .transpose(0, 1)
+            )
         if v is not None:
-            v = v.contiguous().view(-1, bsz * self.num_heads, self.head_dim).transpose(0, 1)
+            v = (
+                v.contiguous()
+                .view(-1, bsz * self.num_heads, self.head_dim)
+                .transpose(0, 1)
+            )
 
         # Apply rot embedding and store incremental_state
         q = self.rotary_embeds(q[None, :], positions=spk_pos_ids_flat)[0]
         if saved_state is not None:
             # saved states are stored with shape (bsz, num_heads, seq_len, head_dim)
-            if 'prev_key' in saved_state:
-                prev_key = saved_state['prev_key'].view(bsz * self.num_heads, -1, self.head_dim)
+            if "prev_key" in saved_state:
+                prev_key = saved_state["prev_key"].view(
+                    bsz * self.num_heads, -1, self.head_dim
+                )
                 if static_kv:
                     k = prev_key
                 else:
                     k = torch.cat((prev_key, k), dim=1)
-            if 'prev_value' in saved_state:
-                prev_value = saved_state['prev_value'].view(bsz * self.num_heads, -1, self.head_dim)
+            if "prev_value" in saved_state:
+                prev_value = saved_state["prev_value"].view(
+                    bsz * self.num_heads, -1, self.head_dim
+                )
                 if static_kv:
                     v = prev_value
                 else:
                     v = torch.cat((prev_value, v), dim=1)
-            saved_state['prev_key'], saved_state['prev_value'] = k.view(bsz, self.num_heads, -1, self.head_dim), v.view(
-                bsz, self.num_heads, -1, self.head_dim)
+            saved_state["prev_key"], saved_state["prev_value"] = k.view(
+                bsz, self.num_heads, -1, self.head_dim
+            ), v.view(bsz, self.num_heads, -1, self.head_dim)
             self._set_input_buffer(incremental_state, saved_state)
         if incremental_state is not None:
             key_pos = torch.arange(k.shape[-2], device=q.device).unsqueeze(0)
@@ -339,10 +396,19 @@ class RotMultiheadAttention(MultiheadAttention):
             k = torch.cat([k, k.new_zeros((k.size(0), 1) + k.size()[2:])], dim=1)
             v = torch.cat([v, v.new_zeros((v.size(0), 1) + v.size()[2:])], dim=1)
             if attn_mask is not None:
-                attn_mask = torch.cat([attn_mask, attn_mask.new_zeros(attn_mask.size(0), 1)], dim=1)
+                attn_mask = torch.cat(
+                    [attn_mask, attn_mask.new_zeros(attn_mask.size(0), 1)], dim=1
+                )
             if key_padding_mask is not None:
                 key_padding_mask = torch.cat(
-                    [key_padding_mask, torch.zeros(key_padding_mask.size(0), 1).type_as(key_padding_mask)], dim=1)
+                    [
+                        key_padding_mask,
+                        torch.zeros(key_padding_mask.size(0), 1).type_as(
+                            key_padding_mask
+                        ),
+                    ],
+                    dim=1,
+                )
 
         attn_weights = torch.bmm(q, k.transpose(1, 2))
         attn_weights = self.apply_sparse_mask(attn_weights, tgt_len, src_len, bsz)
@@ -352,8 +418,11 @@ class RotMultiheadAttention(MultiheadAttention):
             if len(attn_mask.shape) == 2:
                 attn_mask = attn_mask.unsqueeze(0)
             elif len(attn_mask.shape) == 3:
-                attn_mask = attn_mask[:, None].repeat([1, self.num_heads, 1, 1]).reshape(
-                    bsz * self.num_heads, tgt_len, src_len)
+                attn_mask = (
+                    attn_mask[:, None]
+                    .repeat([1, self.num_heads, 1, 1])
+                    .reshape(bsz * self.num_heads, tgt_len, src_len)
+                )
             attn_weights = attn_weights + attn_mask
 
         if enc_dec_attn_constraint_mask is not None:  # bs x head x L_kv
@@ -380,7 +449,11 @@ class RotMultiheadAttention(MultiheadAttention):
 
         attn_weights_float = softmax(attn_weights, dim=-1)
         attn_weights = attn_weights_float.type_as(attn_weights)
-        attn_probs = F.dropout(attn_weights_float.type_as(attn_weights), p=self.dropout, training=self.training)
+        attn_probs = F.dropout(
+            attn_weights_float.type_as(attn_weights),
+            p=self.dropout,
+            training=self.training,
+        )
 
         if reset_attn_weight is not None:
             if reset_attn_weight:
@@ -394,7 +467,9 @@ class RotMultiheadAttention(MultiheadAttention):
         attn = self.out_proj(attn)
 
         if need_weights:
-            attn_weights = attn_weights_float.view(bsz, self.num_heads, tgt_len, src_len).transpose(1, 0)
+            attn_weights = attn_weights_float.view(
+                bsz, self.num_heads, tgt_len, src_len
+            ).transpose(1, 0)
             if not need_head_weights:
                 # average attention weights over heads
                 attn_weights = attn_weights.mean(dim=0)
@@ -405,27 +480,48 @@ class RotMultiheadAttention(MultiheadAttention):
 
 
 class RotMultiheadAttention2(MultiheadAttention):
-    def __init__(self, embed_dim, num_heads, kdim=None, vdim=None, dropout=0., bias=True,
-                 add_bias_kv=False, add_zero_attn=False, self_attention=False,
-                 encoder_decoder_attention=False):
-        super().__init__(embed_dim, num_heads, kdim=kdim, vdim=vdim, dropout=dropout, bias=bias,
-                         add_bias_kv=add_bias_kv, add_zero_attn=add_zero_attn, self_attention=self_attention,
-                         encoder_decoder_attention=encoder_decoder_attention)
+    def __init__(
+        self,
+        embed_dim,
+        num_heads,
+        kdim=None,
+        vdim=None,
+        dropout=0.0,
+        bias=True,
+        add_bias_kv=False,
+        add_zero_attn=False,
+        self_attention=False,
+        encoder_decoder_attention=False,
+    ):
+        super().__init__(
+            embed_dim,
+            num_heads,
+            kdim=kdim,
+            vdim=vdim,
+            dropout=dropout,
+            bias=bias,
+            add_bias_kv=add_bias_kv,
+            add_zero_attn=add_zero_attn,
+            self_attention=self_attention,
+            encoder_decoder_attention=encoder_decoder_attention,
+        )
         self.rotary_embeds = RotaryEmbeddings(width=embed_dim // num_heads)
 
     def forward(
-            self,
-            query, key, value,
-            spk_pos_ids_flat=None,
-            key_padding_mask=None,
-            incremental_state=None,
-            need_weights=True,
-            static_kv=False,
-            attn_mask=None,
-            before_softmax=False,
-            need_head_weights=False,
-            enc_dec_attn_constraint_mask=None,
-            reset_attn_weight=None
+        self,
+        query,
+        key,
+        value,
+        spk_pos_ids_flat=None,
+        key_padding_mask=None,
+        incremental_state=None,
+        need_weights=True,
+        static_kv=False,
+        attn_mask=None,
+        before_softmax=False,
+        need_head_weights=False,
+        enc_dec_attn_constraint_mask=None,
+        reset_attn_weight=None,
     ):
         """Input shape: Time x Batch x Channel
 
@@ -453,7 +549,7 @@ class RotMultiheadAttention2(MultiheadAttention):
 
         if incremental_state is not None:
             saved_state = self._get_input_buffer(incremental_state)
-            if 'prev_key' in saved_state:
+            if "prev_key" in saved_state:
                 # previous time steps are cached - no need to recompute
                 # key and value if they are static
                 if static_kv:
@@ -484,35 +580,59 @@ class RotMultiheadAttention2(MultiheadAttention):
             k = torch.cat([k, self.bias_k.repeat(1, bsz, 1)])
             v = torch.cat([v, self.bias_v.repeat(1, bsz, 1)])
             if attn_mask is not None:
-                attn_mask = torch.cat([attn_mask, attn_mask.new_zeros(attn_mask.size(0), 1)], dim=1)
+                attn_mask = torch.cat(
+                    [attn_mask, attn_mask.new_zeros(attn_mask.size(0), 1)], dim=1
+                )
             if key_padding_mask is not None:
                 key_padding_mask = torch.cat(
-                    [key_padding_mask, key_padding_mask.new_zeros(key_padding_mask.size(0), 1)], dim=1)
+                    [
+                        key_padding_mask,
+                        key_padding_mask.new_zeros(key_padding_mask.size(0), 1),
+                    ],
+                    dim=1,
+                )
 
-        q = q.contiguous().view(tgt_len, bsz * self.num_heads, self.head_dim).transpose(0, 1)
+        q = (
+            q.contiguous()
+            .view(tgt_len, bsz * self.num_heads, self.head_dim)
+            .transpose(0, 1)
+        )
         if k is not None:
-            k = k.contiguous().view(-1, bsz * self.num_heads, self.head_dim).transpose(0, 1)
+            k = (
+                k.contiguous()
+                .view(-1, bsz * self.num_heads, self.head_dim)
+                .transpose(0, 1)
+            )
         if v is not None:
-            v = v.contiguous().view(-1, bsz * self.num_heads, self.head_dim).transpose(0, 1)
+            v = (
+                v.contiguous()
+                .view(-1, bsz * self.num_heads, self.head_dim)
+                .transpose(0, 1)
+            )
 
         # Apply rot embedding and store incremental_state
         q = self.rotary_embeds(q[None, :], positions=spk_pos_ids_flat)[0]
         if saved_state is not None:
             # saved states are stored with shape (bsz, num_heads, seq_len, head_dim)
-            if 'prev_key' in saved_state:
-                prev_key = saved_state['prev_key'].view(bsz * self.num_heads, -1, self.head_dim)
+            if "prev_key" in saved_state:
+                prev_key = saved_state["prev_key"].view(
+                    bsz * self.num_heads, -1, self.head_dim
+                )
                 if static_kv:
                     k = prev_key
                 else:
                     k = torch.cat((prev_key, k), dim=1)
-            if 'prev_value' in saved_state:
-                prev_value = saved_state['prev_value'].view(bsz * self.num_heads, -1, self.head_dim)
+            if "prev_value" in saved_state:
+                prev_value = saved_state["prev_value"].view(
+                    bsz * self.num_heads, -1, self.head_dim
+                )
                 if static_kv:
                     v = prev_value
                 else:
                     v = torch.cat((prev_value, v), dim=1)
-            saved_state['prev_key'], saved_state['prev_value'] = k.view(bsz, self.num_heads, -1, self.head_dim), v.view(
-                bsz, self.num_heads, -1, self.head_dim)
+            saved_state["prev_key"], saved_state["prev_value"] = k.view(
+                bsz, self.num_heads, -1, self.head_dim
+            ), v.view(bsz, self.num_heads, -1, self.head_dim)
             self._set_input_buffer(incremental_state, saved_state)
         key_pos = torch.arange(k.shape[-2], device=q.device).unsqueeze(0)
         k = self.rotary_embeds(k[None, :], positions=key_pos)[0]
@@ -532,10 +652,14 @@ class RotMultiheadAttention2(MultiheadAttention):
             if len(attn_mask.shape) == 2:
                 attn_mask = attn_mask.unsqueeze(0)
             elif len(attn_mask.shape) == 3:
-                attn_mask = attn_mask[:, None].repeat([1, self.num_heads, 1, 1]).reshape(
-                    bsz * self.num_heads, tgt_len, src_len)
+                attn_mask = (
+                    attn_mask[:, None]
+                    .repeat([1, self.num_heads, 1, 1])
+                    .reshape(bsz * self.num_heads, tgt_len, src_len)
+                )
         attn = torch.nn.functional.scaled_dot_product_attention(
-            q, k, v, attn_mask=attn_mask, dropout_p=0, is_causal=False)
+            q, k, v, attn_mask=attn_mask, dropout_p=0, is_causal=False
+        )
         assert list(attn.size()) == [bsz * self.num_heads, tgt_len, self.head_dim]
         attn = attn.transpose(0, 1).contiguous().view(tgt_len, bsz, embed_dim)
         attn_logits = None
@@ -544,8 +668,19 @@ class RotMultiheadAttention2(MultiheadAttention):
 
 
 class RotDecSALayer(nn.Module):
-    def __init__(self, c, num_heads, dropout, attention_dropout=0.1, relu_dropout=0.1,
-                 kernel_size=9, ffn_hidden_size=1024, act='gelu', post_ln=False, bias=True):
+    def __init__(
+        self,
+        c,
+        num_heads,
+        dropout,
+        attention_dropout=0.1,
+        relu_dropout=0.1,
+        kernel_size=9,
+        ffn_hidden_size=1024,
+        act="gelu",
+        post_ln=False,
+        bias=True,
+    ):
         super().__init__()
         self.c = c
         self.dropout = dropout
@@ -555,24 +690,30 @@ class RotDecSALayer(nn.Module):
         )
         self.layer_norm2 = LayerNorm(c)
         self.ffn = TransformerFFNLayer(
-            c, ffn_hidden_size, padding='LEFT', kernel_size=kernel_size,
-            dropout=relu_dropout, act=act, bias=bias)
+            c,
+            ffn_hidden_size,
+            padding="LEFT",
+            kernel_size=kernel_size,
+            dropout=relu_dropout,
+            act=act,
+            bias=bias,
+        )
         self.post_ln = post_ln
 
     def forward(
-            self,
-            x,
-            encoder_out=None,
-            encoder_padding_mask=None,
-            incremental_state=None,
-            self_attn_mask=None,
-            self_attn_padding_mask=None,
-            attn_out=None,
-            reset_attn_weight=None,
-            spk_pos_ids_flat=None,
-            **kwargs,
+        self,
+        x,
+        encoder_out=None,
+        encoder_padding_mask=None,
+        incremental_state=None,
+        self_attn_mask=None,
+        self_attn_padding_mask=None,
+        attn_out=None,
+        reset_attn_weight=None,
+        spk_pos_ids_flat=None,
+        **kwargs,
     ):
-        layer_norm_training = kwargs.get('layer_norm_training', None)
+        layer_norm_training = kwargs.get("layer_norm_training", None)
         if layer_norm_training is not None:
             self.layer_norm1.training = layer_norm_training
             self.layer_norm2.training = layer_norm_training
@@ -587,7 +728,7 @@ class RotDecSALayer(nn.Module):
             key_padding_mask=self_attn_padding_mask,
             incremental_state=incremental_state,
             attn_mask=self_attn_mask,
-            spk_pos_ids_flat=spk_pos_ids_flat
+            spk_pos_ids_flat=spk_pos_ids_flat,
         )
         x = F.dropout(x, self.dropout, training=self.training)
         x = residual + x
@@ -604,7 +745,9 @@ class RotDecSALayer(nn.Module):
             x = self.layer_norm2(x)
         return x, attn_weights
 
-    def clear_buffer(self, input, encoder_out=None, encoder_padding_mask=None, incremental_state=None):
+    def clear_buffer(
+        self, input, encoder_out=None, encoder_padding_mask=None, incremental_state=None
+    ):
         self.encoder_attn.clear_buffer(incremental_state)
         self.ffn.clear_buffer(incremental_state)
 
@@ -613,34 +756,73 @@ class RotDecSALayer(nn.Module):
 
 
 class RotDecSALayer2(RotDecSALayer):
-    def __init__(self, c, num_heads, dropout, attention_dropout=0.1, relu_dropout=0.1, kernel_size=9,
-                 ffn_hidden_size=1024, act='gelu', post_ln=False):
-        super().__init__(c, num_heads, dropout, attention_dropout, relu_dropout, kernel_size, ffn_hidden_size, act,
-                         post_ln)
+    def __init__(
+        self,
+        c,
+        num_heads,
+        dropout,
+        attention_dropout=0.1,
+        relu_dropout=0.1,
+        kernel_size=9,
+        ffn_hidden_size=1024,
+        act="gelu",
+        post_ln=False,
+    ):
+        super().__init__(
+            c,
+            num_heads,
+            dropout,
+            attention_dropout,
+            relu_dropout,
+            kernel_size,
+            ffn_hidden_size,
+            act,
+            post_ln,
+        )
         self.self_attn = RotMultiheadAttention2(
             c, num_heads, self_attention=True, dropout=attention_dropout, bias=False
         )
 
 
 class RotTransformerDecoderLayer(nn.Module):
-    def __init__(self, hidden_size, dropout, kernel_size=9, num_heads=8, ffn_hidden_size=1024, post_ln=False,
-                 op_version=1, bias=True):
+    def __init__(
+        self,
+        hidden_size,
+        dropout,
+        kernel_size=9,
+        num_heads=8,
+        ffn_hidden_size=1024,
+        post_ln=False,
+        op_version=1,
+        bias=True,
+    ):
         super().__init__()
         self.hidden_size = hidden_size
         self.dropout = dropout
         self.num_heads = num_heads
         if op_version == 1:
             self.op = RotDecSALayer(
-                hidden_size, num_heads, dropout=dropout,
-                attention_dropout=0.0, relu_dropout=dropout,
-                kernel_size=kernel_size, ffn_hidden_size=ffn_hidden_size,
-                post_ln=post_ln, bias=bias)
+                hidden_size,
+                num_heads,
+                dropout=dropout,
+                attention_dropout=0.0,
+                relu_dropout=dropout,
+                kernel_size=kernel_size,
+                ffn_hidden_size=ffn_hidden_size,
+                post_ln=post_ln,
+                bias=bias,
+            )
         else:
             self.op = RotDecSALayer2(
-                hidden_size, num_heads, dropout=dropout,
-                attention_dropout=0.0, relu_dropout=dropout,
-                kernel_size=kernel_size, ffn_hidden_size=ffn_hidden_size,
-                post_ln=post_ln)
+                hidden_size,
+                num_heads,
+                dropout=dropout,
+                attention_dropout=0.0,
+                relu_dropout=dropout,
+                kernel_size=kernel_size,
+                ffn_hidden_size=ffn_hidden_size,
+                post_ln=post_ln,
+            )
 
     def forward(self, x, **kwargs):
         return self.op(x, **kwargs)

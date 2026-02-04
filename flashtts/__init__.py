@@ -12,12 +12,9 @@ _import_structure = {
         "AsyncOrpheusEngine",
         "AsyncMega3Engine",
         "SparkAcousticTokens",
-        "AutoEngine"
+        "AutoEngine",
     ],
-    "logger": [
-        "get_logger",
-        "setup_logging"
-    ]
+    "logger": ["get_logger", "setup_logging"],
 }
 
 if TYPE_CHECKING:
@@ -28,7 +25,7 @@ if TYPE_CHECKING:
         AsyncOrpheusEngine,
         SparkAcousticTokens,
         AsyncMega3Engine,
-        AutoEngine
+        AutoEngine,
     )
 else:
     import sys

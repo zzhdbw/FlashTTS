@@ -14,10 +14,7 @@ import torch
 
 from .base_engine import BaseEngine
 from .utils import limit_concurrency
-from ..audio import (
-    SparkTokenizer,
-    SparkDeTokenizer
-)
+from ..audio import SparkTokenizer, SparkDeTokenizer
 from ..logger import get_logger
 
 logger = get_logger()
@@ -62,9 +59,11 @@ class SparkAcousticTokens:
 
     def _parse_prompt(self):
         acoustic = re.findall(
-            r"(<\|start_acoustic_token\|>.*?<\|end_global_token\|>)",
-            self.prompt)
-        global_tokens = [int(token) for token in re.findall(r"bicodec_global_(\d+)", self.prompt)]
+            r"(<\|start_acoustic_token\|>.*?<\|end_global_token\|>)", self.prompt
+        )
+        global_tokens = [
+            int(token) for token in re.findall(r"bicodec_global_(\d+)", self.prompt)
+        ]
         if len(acoustic) == 0:
             raise ValueError("No acoustic tokens found in prompt")
         else:
@@ -72,35 +71,30 @@ class SparkAcousticTokens:
         if len(global_tokens) == 0:
             raise ValueError("No global tokens found in prompt")
         else:
-            global_token_ids = (
-                torch.tensor(global_tokens).unsqueeze(0).long()
-            )
+            global_token_ids = torch.tensor(global_tokens).unsqueeze(0).long()
             self.global_tokens = global_token_ids
 
     def to_dict(self) -> dict[str, str]:
-        return {
-            "prompt": self.prompt,
-            "gender": self.gender
-        }
+        return {"prompt": self.prompt, "gender": self.gender}
 
     def save(self, filepath: str):
-        with open(filepath, 'w', encoding='utf8') as w:
+        with open(filepath, "w", encoding="utf8") as w:
             w.write(json.dumps(self.to_dict(), ensure_ascii=False, indent=2))
 
     @classmethod
     def load(cls, filepath: str):
-        with open(filepath, 'r', encoding='utf8') as r:
+        with open(filepath, "r", encoding="utf8") as r:
             data = json.load(r)
         return cls(**data)
 
 
 def process_prompt(
-        text: str,
-        prompt_text: Optional[str] = None,
-        global_token_ids: torch.Tensor = None,
-        semantic_token_ids: torch.Tensor = None,
-        pitch: Optional[Literal["very_low", "low", "moderate", "high", "very_high"]] = None,
-        speed: Optional[Literal["very_low", "low", "moderate", "high", "very_high"]] = None,
+    text: str,
+    prompt_text: Optional[str] = None,
+    global_token_ids: torch.Tensor = None,
+    semantic_token_ids: torch.Tensor = None,
+    pitch: Optional[Literal["very_low", "low", "moderate", "high", "very_high"]] = None,
+    speed: Optional[Literal["very_low", "low", "moderate", "high", "very_high"]] = None,
 ) -> Tuple[str, torch.Tensor]:
     """
     Process input for voice cloning.
@@ -128,50 +122,51 @@ def process_prompt(
         if speed is None:
             speed = "moderate"
 
-        if pitch != 'moderate' or speed != 'moderate':
+        if pitch != "moderate" or speed != "moderate":
             pitch_level_id = LEVELS_MAP[pitch]
             pitch_label_tokens = f"<|pitch_label_{pitch_level_id}|>"
             speed_level_id = LEVELS_MAP[speed]
             speed_label_tokens = f"<|speed_label_{speed_level_id}|>"
-            attribte_tokens = "".join(
-                [pitch_label_tokens, speed_label_tokens]
-            )
-    audio_text = text if prompt_text is None or len(prompt_text) == 0 else (prompt_text + text)
-    inputs = [
-        TASK_TOKEN_MAP["tts"],
-        "<|start_content|>",
-        audio_text,
-        "<|end_content|>"
-    ]
+            attribte_tokens = "".join([pitch_label_tokens, speed_label_tokens])
+    audio_text = (
+        text if prompt_text is None or len(prompt_text) == 0 else (prompt_text + text)
+    )
+    inputs = [TASK_TOKEN_MAP["tts"], "<|start_content|>", audio_text, "<|end_content|>"]
     if attribte_tokens is not None:
-        inputs.extend([
-            "<|start_style_label|>",
-            attribte_tokens,
-            "<|end_style_label|>",
-        ])
-    inputs.extend([
-        "<|start_global_token|>",
-        global_tokens,
-        "<|end_global_token|>",
-    ])
+        inputs.extend(
+            [
+                "<|start_style_label|>",
+                attribte_tokens,
+                "<|end_style_label|>",
+            ]
+        )
+    inputs.extend(
+        [
+            "<|start_global_token|>",
+            global_tokens,
+            "<|end_global_token|>",
+        ]
+    )
     if prompt_text is not None and len(prompt_text) > 0:
         semantic_tokens = "".join(
             [f"<|bicodec_semantic_{i}|>" for i in semantic_token_ids.squeeze()]
         )
-        inputs.extend([
-            "<|start_semantic_token|>",
-            semantic_tokens,
-        ])
+        inputs.extend(
+            [
+                "<|start_semantic_token|>",
+                semantic_tokens,
+            ]
+        )
     # Join all input components into a single string
     inputs = "".join(inputs)
     return inputs, global_token_ids
 
 
 def process_prompt_control(
-        text: str,
-        gender: Optional[Literal["female", "male"]] = "female",
-        pitch: Optional[Literal["very_low", "low", "moderate", "high", "very_high"]] = None,
-        speed: Optional[Literal["very_low", "low", "moderate", "high", "very_high"]] = None,
+    text: str,
+    gender: Optional[Literal["female", "male"]] = "female",
+    pitch: Optional[Literal["very_low", "low", "moderate", "high", "very_high"]] = None,
+    speed: Optional[Literal["very_low", "low", "moderate", "high", "very_high"]] = None,
 ):
     """
     Process input for voice creation.
@@ -201,9 +196,7 @@ def process_prompt_control(
     speed_label_tokens = f"<|speed_label_{speed_level_id}|>"
     gender_tokens = f"<|gender_{gender_id}|>"
 
-    attribte_tokens = "".join(
-        [gender_tokens, pitch_label_tokens, speed_label_tokens]
-    )
+    attribte_tokens = "".join([gender_tokens, pitch_label_tokens, speed_label_tokens])
 
     control_tts_inputs = [
         TASK_TOKEN_MAP["controllable_tts"],
@@ -224,24 +217,30 @@ class AsyncSparkEngine(BaseEngine):
     _SUPPORT_SPEAK = True
 
     def __init__(
-            self,
-            model_path: str,
-            max_length: int = 32768,
-            llm_device: Literal["cpu", "cuda", "mps", "auto"] | str = "auto",
-            tokenizer_device: Literal["cpu", "cuda", "mps", "auto"] | str = "auto",
-            detokenizer_device: Literal["cpu", "cuda", "mps", "auto"] | str = "auto",
-            llm_tensorrt_path: Optional[str] = None,
-            backend: Literal["vllm", "llama-cpp", "sglang", "torch", "mlx-lm", "tensorrt-llm"] = "torch",
-            wav2vec_attn_implementation: Optional[Literal["sdpa", "flash_attention_2", "eager"]] = None,
-            llm_attn_implementation: Optional[Literal["sdpa", "flash_attention_2", "eager"]] = None,
-            torch_dtype: Literal['float16', "bfloat16", 'float32', 'auto'] = "auto",
-            llm_gpu_memory_utilization: Optional[float] = 0.6,
-            cache_implementation: Optional[str] = None,
-            batch_size: int = 1,
-            llm_batch_size: int = 8,
-            wait_timeout: float = 0.01,
-            seed: int = 0,
-            **kwargs,
+        self,
+        model_path: str,
+        max_length: int = 32768,
+        llm_device: Literal["cpu", "cuda", "mps", "auto"] | str = "auto",
+        tokenizer_device: Literal["cpu", "cuda", "mps", "auto"] | str = "auto",
+        detokenizer_device: Literal["cpu", "cuda", "mps", "auto"] | str = "auto",
+        llm_tensorrt_path: Optional[str] = None,
+        backend: Literal[
+            "vllm", "llama-cpp", "sglang", "torch", "mlx-lm", "tensorrt-llm"
+        ] = "torch",
+        wav2vec_attn_implementation: Optional[
+            Literal["sdpa", "flash_attention_2", "eager"]
+        ] = None,
+        llm_attn_implementation: Optional[
+            Literal["sdpa", "flash_attention_2", "eager"]
+        ] = None,
+        torch_dtype: Literal["float16", "bfloat16", "float32", "auto"] = "auto",
+        llm_gpu_memory_utilization: Optional[float] = 0.6,
+        cache_implementation: Optional[str] = None,
+        batch_size: int = 1,
+        llm_batch_size: int = 8,
+        wait_timeout: float = 0.01,
+        seed: int = 0,
+        **kwargs,
     ):
         """
 
@@ -261,25 +260,25 @@ class AsyncSparkEngine(BaseEngine):
         """
         self.seed = seed
         self.set_seed(seed)
-        if torch_dtype == 'float16':
+        if torch_dtype == "float16":
             logger.warning("Spark engine does not support float16 !")
             if torch.cuda.is_bf16_supported():
-                torch_dtype = 'bfloat16'
+                torch_dtype = "bfloat16"
             else:
-                torch_dtype = 'float32'
+                torch_dtype = "float32"
 
         self.audio_tokenizer = SparkTokenizer(
             model_path,
             device=self._auto_detect_device(tokenizer_device),
             attn_implementation=wav2vec_attn_implementation,
             batch_size=batch_size,
-            wait_timeout=wait_timeout
+            wait_timeout=wait_timeout,
         )
         self.audio_detokenizer = SparkDeTokenizer(
             model_path,
             device=self._auto_detect_device(detokenizer_device),
             batch_size=batch_size,
-            wait_timeout=wait_timeout
+            wait_timeout=wait_timeout,
         )
 
         super().__init__(
@@ -295,48 +294,53 @@ class AsyncSparkEngine(BaseEngine):
             llm_batch_size=llm_batch_size,
             seed=seed,
             stop_tokens=["<|end_semantic_token|>"],
-            **kwargs
+            **kwargs,
         )
         # 添加默认角色
-        for name in ['female', 'male']:
+        for name in ["female", "male"]:
             if name not in self.speakers:
                 self.speakers[name] = {}
 
     @classmethod
     def apply_prompt(
-            cls,
-            text: str,
-            prompt_text: Optional[str] = None,
-            global_token_ids: torch.Tensor = None,
-            semantic_token_ids: torch.Tensor = None,
-            gender: Optional[Literal["female", "male"]] = None,
-            pitch: Optional[Literal["very_low", "low", "moderate", "high", "very_high"]] = None,
-            speed: Optional[Literal["very_low", "low", "moderate", "high", "very_high"]] = None,
+        cls,
+        text: str,
+        prompt_text: Optional[str] = None,
+        global_token_ids: torch.Tensor = None,
+        semantic_token_ids: torch.Tensor = None,
+        gender: Optional[Literal["female", "male"]] = None,
+        pitch: Optional[
+            Literal["very_low", "low", "moderate", "high", "very_high"]
+        ] = None,
+        speed: Optional[
+            Literal["very_low", "low", "moderate", "high", "very_high"]
+        ] = None,
     ):
         if global_token_ids is not None and semantic_token_ids is not None:
             return process_prompt(
-                text, prompt_text,
-                global_token_ids, semantic_token_ids,
-                pitch=pitch, speed=speed)
+                text,
+                prompt_text,
+                global_token_ids,
+                semantic_token_ids,
+                pitch=pitch,
+                speed=speed,
+            )
         else:
             return process_prompt_control(text, gender, pitch, speed)
 
-    async def _tokenize(
-            self,
-            audio
-    ):
+    async def _tokenize(self, audio):
         output = await self.audio_tokenizer.tokenize_async(audio)
         return output
 
     async def _generate_audio_tokens(
-            self,
-            prompt: str,
-            temperature: float = 0.9,
-            top_k: int = 50,
-            top_p: float = 0.95,
-            repetition_penalty: float = 1.0,
-            max_tokens: int = 4096,
-            **kwargs
+        self,
+        prompt: str,
+        temperature: float = 0.9,
+        top_k: int = 50,
+        top_p: float = 0.95,
+        repetition_penalty: float = 1.0,
+        max_tokens: int = 4096,
+        **kwargs,
     ) -> dict[str, torch.Tensor | str]:
         generated_output = await self.generator.async_generate(
             prompt=prompt,
@@ -345,70 +349,73 @@ class AsyncSparkEngine(BaseEngine):
             top_p=top_p,
             top_k=top_k,
             repetition_penalty=repetition_penalty,
-            **kwargs
+            **kwargs,
         )
         generated_output = generated_output.text
-        pred_semantic_tokens = [int(token) for token in re.findall(r"bicodec_semantic_(\d+)", generated_output)]
+        pred_semantic_tokens = [
+            int(token)
+            for token in re.findall(r"bicodec_semantic_(\d+)", generated_output)
+        ]
         if len(pred_semantic_tokens) == 0:
             err_msg = f"Semantic tokens 预测为空，prompt：{prompt}，llm output：{generated_output}"
             logger.error(err_msg)
             raise ValueError(err_msg)
 
-        pred_semantic_ids = (
-            torch.tensor(pred_semantic_tokens).to(torch.int32)
-        )
+        pred_semantic_ids = torch.tensor(pred_semantic_tokens).to(torch.int32)
 
         output = {
             "semantic_tokens": pred_semantic_ids,
             "completion": generated_output,
         }
 
-        global_tokens = [int(token) for token in re.findall(r"bicodec_global_(\d+)", generated_output)]
+        global_tokens = [
+            int(token)
+            for token in re.findall(r"bicodec_global_(\d+)", generated_output)
+        ]
         if len(global_tokens) > 0:
-            global_token_ids = (
-                torch.tensor(global_tokens).unsqueeze(0).long()
-            )
+            global_token_ids = torch.tensor(global_tokens).unsqueeze(0).long()
             output["global_tokens"] = global_token_ids
 
         return output
 
     async def tokens2wav(
-            self,
-            global_tokens: torch.Tensor,
-            semantic_tokens: torch.Tensor
+        self, global_tokens: torch.Tensor, semantic_tokens: torch.Tensor
     ) -> np.ndarray:
         detokenizer_req = {
             "global_tokens": global_tokens,
             "semantic_tokens": semantic_tokens,
         }
-        audio = await self.audio_detokenizer.detokenize_async(
-            request=detokenizer_req
-        )
+        audio = await self.audio_detokenizer.detokenize_async(request=detokenizer_req)
         audio = audio["audio"][0].detach().cpu().numpy().astype(np.float32)
         return audio
 
     async def _clone_voice_by_tokens(
-            self,
-            text: str,
-            global_tokens: torch.Tensor,
-            semantic_tokens: torch.Tensor,
-            reference_text: Optional[str] = None,
-            pitch: Optional[Literal["very_low", "low", "moderate", "high", "very_high"]] = None,
-            speed: Optional[Literal["very_low", "low", "moderate", "high", "very_high"]] = None,
-            temperature: float = 0.9,
-            top_k: int = 50,
-            top_p: float = 0.95,
-            repetition_penalty: float = 1.0,
-            max_tokens: int = 4096,
-            length_threshold: int = 50,
-            window_size: int = 50,
-            split_fn: Optional[Callable[[str], list[str]]] = None,
-            **kwargs) -> np.ndarray:
+        self,
+        text: str,
+        global_tokens: torch.Tensor,
+        semantic_tokens: torch.Tensor,
+        reference_text: Optional[str] = None,
+        pitch: Optional[
+            Literal["very_low", "low", "moderate", "high", "very_high"]
+        ] = None,
+        speed: Optional[
+            Literal["very_low", "low", "moderate", "high", "very_high"]
+        ] = None,
+        temperature: float = 0.9,
+        top_k: int = 50,
+        top_p: float = 0.95,
+        repetition_penalty: float = 1.0,
+        max_tokens: int = 4096,
+        length_threshold: int = 50,
+        window_size: int = 50,
+        split_fn: Optional[Callable[[str], list[str]]] = None,
+        **kwargs,
+    ) -> np.ndarray:
         segments = self.preprocess_text(
             text,
             window_size=window_size,
             split_fn=split_fn,
-            length_threshold=length_threshold
+            length_threshold=length_threshold,
         )
 
         async def clone_segment(segment):
@@ -427,17 +434,22 @@ class AsyncSparkEngine(BaseEngine):
                 top_p=top_p,
                 repetition_penalty=repetition_penalty,
                 max_tokens=max_tokens,
-                **kwargs
+                **kwargs,
             )
             return await self.tokens2wav(
                 global_tokens=global_tokens,
-                semantic_tokens=generated["semantic_tokens"]
+                semantic_tokens=generated["semantic_tokens"],
             )
 
         if len(segments) > 1:
-            semaphore = asyncio.Semaphore(self._batch_size)  # 限制并发数，避免超长文本卡死
+            semaphore = asyncio.Semaphore(
+                self._batch_size
+            )  # 限制并发数，避免超长文本卡死
             limit_clone_segment = limit_concurrency(semaphore)(clone_segment)
-            tasks = [asyncio.create_task(limit_clone_segment(segment)) for segment in segments]
+            tasks = [
+                asyncio.create_task(limit_clone_segment(segment))
+                for segment in segments
+            ]
             # 并发执行所有任务
             audios = await asyncio.gather(*tasks)
             final_audio = np.concatenate(audios, axis=0)
@@ -450,61 +462,70 @@ class AsyncSparkEngine(BaseEngine):
         return final_audio
 
     async def _post_process_chunk_audio(
-            self,
-            audio_idx: int,
-            semantic_tokens: list[int],
-            chunk_size: int,
-            global_tokens: torch.Tensor,
-            cross_fade_samples: int,
-            fade_in: np.ndarray,
-            fade_out: np.ndarray,
-            last_chunk_audio: np.ndarray,
-            overlap_chunk_size: int
+        self,
+        audio_idx: int,
+        semantic_tokens: list[int],
+        chunk_size: int,
+        global_tokens: torch.Tensor,
+        cross_fade_samples: int,
+        fade_in: np.ndarray,
+        fade_out: np.ndarray,
+        last_chunk_audio: np.ndarray,
+        overlap_chunk_size: int,
     ):
         chunk_semantic_tokens = semantic_tokens[:chunk_size]
-        chunk_semantic_tokens = (
-            torch.tensor(chunk_semantic_tokens).to(torch.int32)
-        )
+        chunk_semantic_tokens = torch.tensor(chunk_semantic_tokens).to(torch.int32)
         chunk_audio = await self.tokens2wav(
-            global_tokens=global_tokens,
-            semantic_tokens=chunk_semantic_tokens
+            global_tokens=global_tokens, semantic_tokens=chunk_semantic_tokens
         )
         if audio_idx == 0:
             yield_audio = chunk_audio[:-cross_fade_samples]
         else:
-            cross_faded_overlap = chunk_audio[:cross_fade_samples] * fade_in + last_chunk_audio[
-                                                                               -cross_fade_samples:] * fade_out
+            cross_faded_overlap = (
+                chunk_audio[:cross_fade_samples] * fade_in
+                + last_chunk_audio[-cross_fade_samples:] * fade_out
+            )
             yield_audio = np.concatenate(
-                [cross_faded_overlap, chunk_audio[cross_fade_samples:-cross_fade_samples]], axis=0)
+                [
+                    cross_faded_overlap,
+                    chunk_audio[cross_fade_samples:-cross_fade_samples],
+                ],
+                axis=0,
+            )
 
         return {
             "yield_audio": yield_audio,
             "audio_idx": audio_idx + 1,
             "last_chunk_audio": chunk_audio,
-            "semantic_tokens": semantic_tokens[chunk_size - overlap_chunk_size:]
+            "semantic_tokens": semantic_tokens[chunk_size - overlap_chunk_size :],
         }
 
     async def _clone_voice_stream_by_tokens(
-            self,
-            text: str,
-            global_tokens: torch.Tensor,
-            semantic_tokens: torch.Tensor,
-            reference_text: Optional[str] = None,
-            pitch: Optional[Literal["very_low", "low", "moderate", "high", "very_high"]] = None,
-            speed: Optional[Literal["very_low", "low", "moderate", "high", "very_high"]] = None,
-            temperature: float = 0.9,
-            top_k: int = 50,
-            top_p: float = 0.95,
-            repetition_penalty: float = 1.0,
-            max_tokens: int = 4096,
-            length_threshold: int = 50,
-            window_size: int = 50,
-            split_fn: Optional[Callable[[str], list[str]]] = None,
-            audio_chunk_duration: float = 1.0,
-            max_audio_chunk_duration: float = 8.0,
-            audio_chunk_size_scale_factor: float = 2.0,
-            audio_chunk_overlap_duration: float = 0.1,
-            **kwargs) -> AsyncIterator[np.ndarray]:
+        self,
+        text: str,
+        global_tokens: torch.Tensor,
+        semantic_tokens: torch.Tensor,
+        reference_text: Optional[str] = None,
+        pitch: Optional[
+            Literal["very_low", "low", "moderate", "high", "very_high"]
+        ] = None,
+        speed: Optional[
+            Literal["very_low", "low", "moderate", "high", "very_high"]
+        ] = None,
+        temperature: float = 0.9,
+        top_k: int = 50,
+        top_p: float = 0.95,
+        repetition_penalty: float = 1.0,
+        max_tokens: int = 4096,
+        length_threshold: int = 50,
+        window_size: int = 50,
+        split_fn: Optional[Callable[[str], list[str]]] = None,
+        audio_chunk_duration: float = 1.0,
+        max_audio_chunk_duration: float = 8.0,
+        audio_chunk_size_scale_factor: float = 2.0,
+        audio_chunk_overlap_duration: float = 0.1,
+        **kwargs,
+    ) -> AsyncIterator[np.ndarray]:
         if audio_chunk_duration < 0.5:
             err_msg = "audio_chunk_duration at least 0.5 seconds"
             logger.error(err_msg)
@@ -515,9 +536,13 @@ class AsyncSparkEngine(BaseEngine):
             raise ValueError(err_msg)
 
         audio_tokenizer_frame_rate = 50
-        max_chunk_size = math.ceil(max_audio_chunk_duration * audio_tokenizer_frame_rate)
+        max_chunk_size = math.ceil(
+            max_audio_chunk_duration * audio_tokenizer_frame_rate
+        )
         chunk_size = math.ceil(audio_chunk_duration * audio_tokenizer_frame_rate)
-        overlap_chunk_size = math.ceil(audio_chunk_overlap_duration * audio_tokenizer_frame_rate)
+        overlap_chunk_size = math.ceil(
+            audio_chunk_overlap_duration * audio_tokenizer_frame_rate
+        )
         cross_fade_samples = int(audio_chunk_overlap_duration * self.SAMPLE_RATE)
         fade_out = np.linspace(1, 0, cross_fade_samples)
         fade_in = np.linspace(0, 1, cross_fade_samples)
@@ -526,7 +551,7 @@ class AsyncSparkEngine(BaseEngine):
             text,
             window_size=window_size,
             split_fn=split_fn,
-            length_threshold=length_threshold
+            length_threshold=length_threshold,
         )
 
         prompts = []
@@ -546,17 +571,19 @@ class AsyncSparkEngine(BaseEngine):
         last_audio = None
         for prompt in prompts:
             async for tokens in self.generator.async_stream_generate(
-                    prompt=prompt,
-                    max_tokens=max_tokens,
-                    temperature=temperature,
-                    top_p=top_p,
-                    top_k=top_k,
-                    repetition_penalty=repetition_penalty,
-                    **kwargs
+                prompt=prompt,
+                max_tokens=max_tokens,
+                temperature=temperature,
+                top_p=top_p,
+                top_k=top_k,
+                repetition_penalty=repetition_penalty,
+                **kwargs,
             ):
                 tokens = tokens.text
                 pred_semantic_tokens = [
-                    int(token) for token in re.findall(r"bicodec_semantic_(\d+)", tokens)]
+                    int(token)
+                    for token in re.findall(r"bicodec_semantic_(\d+)", tokens)
+                ]
 
                 out_semantic_tokens.extend(pred_semantic_tokens)
 
@@ -570,16 +597,18 @@ class AsyncSparkEngine(BaseEngine):
                         fade_in=fade_in,
                         fade_out=fade_out,
                         last_chunk_audio=last_audio,
-                        overlap_chunk_size=overlap_chunk_size
+                        overlap_chunk_size=overlap_chunk_size,
                     )
 
-                    yield processed['yield_audio']
+                    yield processed["yield_audio"]
 
-                    audio_index = processed['audio_idx']
+                    audio_index = processed["audio_idx"]
                     last_audio = processed["last_chunk_audio"]
                     out_semantic_tokens = processed["semantic_tokens"]
                     # increase chunk size for better speech quality
-                    chunk_size = min(max_chunk_size, int(chunk_size * audio_chunk_size_scale_factor))
+                    chunk_size = min(
+                        max_chunk_size, int(chunk_size * audio_chunk_size_scale_factor)
+                    )
 
         if len(out_semantic_tokens) > 0:
             processed = await self._post_process_chunk_audio(
@@ -591,45 +620,52 @@ class AsyncSparkEngine(BaseEngine):
                 fade_in=fade_in,
                 fade_out=fade_out,
                 last_chunk_audio=last_audio,
-                overlap_chunk_size=overlap_chunk_size
+                overlap_chunk_size=overlap_chunk_size,
             )
 
-            yield processed['yield_audio']
-            last_audio = processed['last_chunk_audio']
+            yield processed["yield_audio"]
+            last_audio = processed["last_chunk_audio"]
         if last_audio is not None:
             yield last_audio[-cross_fade_samples:]
 
-    async def _add_speaker(self, name: str, audio, reference_text: Optional[str] = None):
+    async def _add_speaker(
+        self, name: str, audio, reference_text: Optional[str] = None
+    ):
         if name not in ["female", "male"]:
-            tokens = await self._tokenize(
-                audio
-            )
+            tokens = await self._tokenize(audio)
             self.speakers[name] = {
-                "global_tokens": tokens['global_tokens'].detach().cpu(),
-                "semantic_tokens": tokens['semantic_tokens'].detach().cpu(),
-                "reference_text": reference_text
+                "global_tokens": tokens["global_tokens"].detach().cpu(),
+                "semantic_tokens": tokens["semantic_tokens"].detach().cpu(),
+                "reference_text": reference_text,
             }
         else:
             self.speakers[name] = {}
 
     async def _control_generate(
-            self,
-            text: str,
-            gender: Optional[Literal["female", "male"]] = "female",
-            pitch: Optional[Literal["very_low", "low", "moderate", "high", "very_high"]] = None,
-            speed: Optional[Literal["very_low", "low", "moderate", "high", "very_high"]] = None,
-            temperature: float = 0.9,
-            top_k: int = 50,
-            top_p: float = 0.95,
-            repetition_penalty: float = 1.0,
-            max_tokens: int = 4096,
-            length_threshold: int = 50,
-            window_size: int = 50,
-            split_fn: Optional[Callable[[str], list[str]]] = None,
-            acoustic_tokens: Optional[SparkAcousticTokens | str] = None,
-            return_acoustic_tokens: bool = False,
-            **kwargs):
-        gender: Literal["female", "male"] = gender if gender in ["female", "male"] else "female"
+        self,
+        text: str,
+        gender: Optional[Literal["female", "male"]] = "female",
+        pitch: Optional[
+            Literal["very_low", "low", "moderate", "high", "very_high"]
+        ] = None,
+        speed: Optional[
+            Literal["very_low", "low", "moderate", "high", "very_high"]
+        ] = None,
+        temperature: float = 0.9,
+        top_k: int = 50,
+        top_p: float = 0.95,
+        repetition_penalty: float = 1.0,
+        max_tokens: int = 4096,
+        length_threshold: int = 50,
+        window_size: int = 50,
+        split_fn: Optional[Callable[[str], list[str]]] = None,
+        acoustic_tokens: Optional[SparkAcousticTokens | str] = None,
+        return_acoustic_tokens: bool = False,
+        **kwargs,
+    ):
+        gender: Literal["female", "male"] = (
+            gender if gender in ["female", "male"] else "female"
+        )
 
         if acoustic_tokens is not None and isinstance(acoustic_tokens, str):
             acoustic_tokens = SparkAcousticTokens.load(acoustic_tokens)
@@ -638,21 +674,23 @@ class AsyncSparkEngine(BaseEngine):
             if acoustic_tokens.gender != gender:
                 logger.warning(
                     f"The provided `acoustic_tokens` belong to the `{acoustic_tokens.gender}`, but the specified gender is {gender}. "
-                    f"The `acoustic_tokens` will therefore not be used.")
+                    f"The `acoustic_tokens` will therefore not be used."
+                )
                 acoustic_tokens = None
 
         segments = self.preprocess_text(
             text,
             window_size=window_size,
             split_fn=split_fn,
-            length_threshold=length_threshold
+            length_threshold=length_threshold,
         )
 
         async def generate_audio(
-                segment: str,
-                acoustic_token: Optional[SparkAcousticTokens] = None
+            segment: str, acoustic_token: Optional[SparkAcousticTokens] = None
         ):
-            prompt = self.apply_prompt(text=segment, gender=gender, pitch=pitch, speed=speed)
+            prompt = self.apply_prompt(
+                text=segment, gender=gender, pitch=pitch, speed=speed
+            )
             if acoustic_token is not None:
                 prompt += acoustic_token.prompt
             generated = await self._generate_audio_tokens(
@@ -662,63 +700,72 @@ class AsyncSparkEngine(BaseEngine):
                 top_p=top_p,
                 repetition_penalty=repetition_penalty,
                 max_tokens=max_tokens,
-                **kwargs
+                **kwargs,
             )
             current_global_tokens = (
-                generated['global_tokens'] if acoustic_token is None else acoustic_token.global_tokens)
+                generated["global_tokens"]
+                if acoustic_token is None
+                else acoustic_token.global_tokens
+            )
 
             audio = await self.tokens2wav(
                 global_tokens=current_global_tokens,
-                semantic_tokens=generated['semantic_tokens']
+                semantic_tokens=generated["semantic_tokens"],
             )
-            return {
-                "audio": audio,
-                "completion": generated['completion']
-            }
+            return {"audio": audio, "completion": generated["completion"]}
 
         audios = []
         if acoustic_tokens is None:
             # 如果没有传入音色，使用第一段生成音色token，将其与后面片段一起拼接，使用相同音色token引导输出semantic tokens。
             first_output = await generate_audio(segments[0], acoustic_token=None)
-            acoustic_tokens = SparkAcousticTokens(first_output['completion'], gender=gender)
-            audios.append(first_output['audio'])
+            acoustic_tokens = SparkAcousticTokens(
+                first_output["completion"], gender=gender
+            )
+            audios.append(first_output["audio"])
             segments = segments[1:]
 
         if len(segments) > 0:
-            semaphore = asyncio.Semaphore(self._batch_size)  # 限制并发数，避免超长文本卡死
+            semaphore = asyncio.Semaphore(
+                self._batch_size
+            )  # 限制并发数，避免超长文本卡死
             limit_generate_audio = limit_concurrency(semaphore)(generate_audio)
 
-            tasks = [asyncio.create_task(
-                limit_generate_audio(
-                    segment,
-                    acoustic_token=acoustic_tokens
+            tasks = [
+                asyncio.create_task(
+                    limit_generate_audio(segment, acoustic_token=acoustic_tokens)
                 )
-            ) for segment in segments]
+                for segment in segments
+            ]
             # 并发执行所有任务
             generated_segments = await asyncio.gather(*tasks)
-            audios = audios + [out['audio'] for out in generated_segments]
+            audios = audios + [out["audio"] for out in generated_segments]
         final_audio = np.concatenate(audios, axis=0)
         if return_acoustic_tokens:
             return final_audio, acoustic_tokens
         return final_audio
 
     async def speak_async(
-            self,
-            text: str,
-            name: str = "female",
-            pitch: Optional[Literal["very_low", "low", "moderate", "high", "very_high"]] = None,
-            speed: Optional[Literal["very_low", "low", "moderate", "high", "very_high"]] = None,
-            temperature: float = 0.9,
-            top_k: int = 50,
-            top_p: float = 0.95,
-            repetition_penalty: float = 1.0,
-            max_tokens: int = 4096,
-            length_threshold: int = 50,
-            window_size: int = 50,
-            split_fn: Optional[Callable[[str], list[str]]] = None,
-            acoustic_tokens: Optional[SparkAcousticTokens | str] = None,
-            return_acoustic_tokens: bool = False,
-            **kwargs) -> np.ndarray | tuple[np.ndarray, SparkAcousticTokens]:
+        self,
+        text: str,
+        name: str = "female",
+        pitch: Optional[
+            Literal["very_low", "low", "moderate", "high", "very_high"]
+        ] = None,
+        speed: Optional[
+            Literal["very_low", "low", "moderate", "high", "very_high"]
+        ] = None,
+        temperature: float = 0.9,
+        top_k: int = 50,
+        top_p: float = 0.95,
+        repetition_penalty: float = 1.0,
+        max_tokens: int = 4096,
+        length_threshold: int = 50,
+        window_size: int = 50,
+        split_fn: Optional[Callable[[str], list[str]]] = None,
+        acoustic_tokens: Optional[SparkAcousticTokens | str] = None,
+        return_acoustic_tokens: bool = False,
+        **kwargs,
+    ) -> np.ndarray | tuple[np.ndarray, SparkAcousticTokens]:
         name = name or "female"
         if name not in self.speakers:
             err_msg = f"{name} 角色不存在。"
@@ -742,7 +789,7 @@ class AsyncSparkEngine(BaseEngine):
                 split_fn=split_fn,
                 acoustic_tokens=acoustic_tokens,
                 return_acoustic_tokens=return_acoustic_tokens,
-                **kwargs
+                **kwargs,
             )
             if return_acoustic_tokens and isinstance(output, tuple):
                 audio = output[0]
@@ -751,13 +798,13 @@ class AsyncSparkEngine(BaseEngine):
                 audio = output
         else:
             speaker_data = await self.get_speaker(name)
-            global_tokens = speaker_data['global_tokens'].detach().clone()
-            semantic_tokens = speaker_data['semantic_tokens'].detach().clone()
+            global_tokens = speaker_data["global_tokens"].detach().clone()
+            semantic_tokens = speaker_data["semantic_tokens"].detach().clone()
             audio = await self._clone_voice_by_tokens(
                 text=text,
                 global_tokens=global_tokens,
                 semantic_tokens=semantic_tokens,
-                reference_text=speaker_data['reference_text'],
+                reference_text=speaker_data["reference_text"],
                 temperature=temperature,
                 top_k=top_k,
                 top_p=top_p,
@@ -766,7 +813,7 @@ class AsyncSparkEngine(BaseEngine):
                 length_threshold=length_threshold,
                 window_size=window_size,
                 split_fn=split_fn,
-                **kwargs
+                **kwargs,
             )
             del global_tokens
             del semantic_tokens
@@ -780,28 +827,34 @@ class AsyncSparkEngine(BaseEngine):
         return audio
 
     async def _control_stream_generate(
-            self,
-            text: str,
-            gender: Optional[Literal["female", "male"]] = "female",
-            pitch: Optional[Literal["very_low", "low", "moderate", "high", "very_high"]] = None,
-            speed: Optional[Literal["very_low", "low", "moderate", "high", "very_high"]] = None,
-            temperature: float = 0.9,
-            top_k: int = 50,
-            top_p: float = 0.95,
-            repetition_penalty: float = 1.0,
-            max_tokens: int = 4096,
-            length_threshold: int = 50,
-            window_size: int = 50,
-            split_fn: Optional[Callable[[str], list[str]]] = None,
-            audio_chunk_duration: float = 1.0,
-            max_audio_chunk_duration: float = 8.0,
-            audio_chunk_size_scale_factor: float = 2.0,
-            audio_chunk_overlap_duration: float = 0.1,
-            acoustic_tokens: Optional[SparkAcousticTokens | str] = None,
-            return_acoustic_tokens: bool = False,
-            **kwargs
+        self,
+        text: str,
+        gender: Optional[Literal["female", "male"]] = "female",
+        pitch: Optional[
+            Literal["very_low", "low", "moderate", "high", "very_high"]
+        ] = None,
+        speed: Optional[
+            Literal["very_low", "low", "moderate", "high", "very_high"]
+        ] = None,
+        temperature: float = 0.9,
+        top_k: int = 50,
+        top_p: float = 0.95,
+        repetition_penalty: float = 1.0,
+        max_tokens: int = 4096,
+        length_threshold: int = 50,
+        window_size: int = 50,
+        split_fn: Optional[Callable[[str], list[str]]] = None,
+        audio_chunk_duration: float = 1.0,
+        max_audio_chunk_duration: float = 8.0,
+        audio_chunk_size_scale_factor: float = 2.0,
+        audio_chunk_overlap_duration: float = 0.1,
+        acoustic_tokens: Optional[SparkAcousticTokens | str] = None,
+        return_acoustic_tokens: bool = False,
+        **kwargs,
     ):
-        gender: Literal["female", "male"] = gender if gender in ["female", "male"] else "female"
+        gender: Literal["female", "male"] = (
+            gender if gender in ["female", "male"] else "female"
+        )
 
         if audio_chunk_duration < 0.5:
             err_msg = "audio_chunk_duration at least 0.5 seconds"
@@ -819,13 +872,18 @@ class AsyncSparkEngine(BaseEngine):
             if acoustic_tokens.gender != gender:
                 logger.warning(
                     f"The provided `acoustic_tokens` belong to the `{acoustic_tokens.gender}`, but the specified gender is {gender}. "
-                    f"The `acoustic_tokens` will therefore not be used.")
+                    f"The `acoustic_tokens` will therefore not be used."
+                )
                 acoustic_tokens = None
 
         audio_tokenizer_frame_rate = 50
-        max_chunk_size = math.ceil(max_audio_chunk_duration * audio_tokenizer_frame_rate)
+        max_chunk_size = math.ceil(
+            max_audio_chunk_duration * audio_tokenizer_frame_rate
+        )
         chunk_size = math.ceil(audio_chunk_duration * audio_tokenizer_frame_rate)
-        overlap_chunk_size = math.ceil(audio_chunk_overlap_duration * audio_tokenizer_frame_rate)
+        overlap_chunk_size = math.ceil(
+            audio_chunk_overlap_duration * audio_tokenizer_frame_rate
+        )
         cross_fade_samples = int(audio_chunk_overlap_duration * self.SAMPLE_RATE)
         fade_out = np.linspace(1, 0, cross_fade_samples)
         fade_in = np.linspace(0, 1, cross_fade_samples)
@@ -834,9 +892,12 @@ class AsyncSparkEngine(BaseEngine):
             text,
             window_size=window_size,
             split_fn=split_fn,
-            length_threshold=length_threshold
+            length_threshold=length_threshold,
         )
-        prompts = [process_prompt_control(segment, gender, pitch, speed) for segment in segments]
+        prompts = [
+            process_prompt_control(segment, gender, pitch, speed)
+            for segment in segments
+        ]
 
         completion = ""
         semantic_tokens = []
@@ -853,28 +914,33 @@ class AsyncSparkEngine(BaseEngine):
                 logger.error(err_msg)
                 break
             async for tokens in self.generator.async_stream_generate(
-                    prompt=prompt,
-                    max_tokens=max_tokens,
-                    temperature=temperature,
-                    top_p=top_p,
-                    top_k=top_k,
-                    repetition_penalty=repetition_penalty,
-                    **kwargs
+                prompt=prompt,
+                max_tokens=max_tokens,
+                temperature=temperature,
+                top_p=top_p,
+                top_k=top_k,
+                repetition_penalty=repetition_penalty,
+                **kwargs,
             ):
                 tokens = tokens.text
                 if acoustic_tokens is None:
                     completion += tokens
                     acoustics = re.findall(
                         r"(<\|start_acoustic_token\|>.*?<\|end_global_token\|>)",
-                        completion)
+                        completion,
+                    )
                     if len(acoustics) > 0:
-                        acoustic_tokens = SparkAcousticTokens(acoustics[0], gender=gender)
+                        acoustic_tokens = SparkAcousticTokens(
+                            acoustics[0], gender=gender
+                        )
                         completion = ""
                     else:
                         continue
                 else:
                     pred_semantic_tokens = [
-                        int(token) for token in re.findall(r"bicodec_semantic_(\d+)", tokens)]
+                        int(token)
+                        for token in re.findall(r"bicodec_semantic_(\d+)", tokens)
+                    ]
 
                     semantic_tokens.extend(pred_semantic_tokens)
 
@@ -890,13 +956,15 @@ class AsyncSparkEngine(BaseEngine):
                         last_chunk_audio=last_audio,
                         overlap_chunk_size=overlap_chunk_size,
                     )
-                    yield processed['yield_audio']
+                    yield processed["yield_audio"]
 
-                    audio_index = processed['audio_idx']
-                    last_audio = processed['last_chunk_audio']
-                    semantic_tokens = processed['semantic_tokens']
+                    audio_index = processed["audio_idx"]
+                    last_audio = processed["last_chunk_audio"]
+                    semantic_tokens = processed["semantic_tokens"]
                     # increase chunk size for better speech quality
-                    chunk_size = min(max_chunk_size, int(chunk_size * audio_chunk_size_scale_factor))
+                    chunk_size = min(
+                        max_chunk_size, int(chunk_size * audio_chunk_size_scale_factor)
+                    )
 
         if len(semantic_tokens) > 0:
             processed = await self._post_process_chunk_audio(
@@ -911,8 +979,8 @@ class AsyncSparkEngine(BaseEngine):
                 overlap_chunk_size=overlap_chunk_size,
             )
 
-            yield processed['yield_audio']
-            last_audio = processed['last_chunk_audio']
+            yield processed["yield_audio"]
+            last_audio = processed["last_chunk_audio"]
 
         if last_audio is not None:
             yield last_audio[-cross_fade_samples:]
@@ -921,161 +989,38 @@ class AsyncSparkEngine(BaseEngine):
             yield acoustic_tokens
 
     async def speak_stream_async(
-            self,
-            text: str,
-            name: str = "female",
-            pitch: Optional[Literal["very_low", "low", "moderate", "high", "very_high"]] = None,
-            speed: Optional[Literal["very_low", "low", "moderate", "high", "very_high"]] = None,
-            temperature: float = 0.9,
-            top_k: int = 50,
-            top_p: float = 0.95,
-            repetition_penalty: float = 1.0,
-            max_tokens: int = 4096,
-            length_threshold: int = 50,
-            window_size: int = 50,
-            split_fn: Optional[Callable[[str], list[str]]] = None,
-            audio_chunk_duration: float = 1.0,
-            max_audio_chunk_duration: float = 8.0,
-            audio_chunk_size_scale_factor: float = 2.0,
-            audio_chunk_overlap_duration: float = 0.1,
-            acoustic_tokens: Optional[SparkAcousticTokens | str] = None,
-            return_acoustic_tokens: bool = False,
-            **kwargs) -> AsyncIterator[np.ndarray | SparkAcousticTokens]:
+        self,
+        text: str,
+        name: str = "female",
+        pitch: Optional[
+            Literal["very_low", "low", "moderate", "high", "very_high"]
+        ] = None,
+        speed: Optional[
+            Literal["very_low", "low", "moderate", "high", "very_high"]
+        ] = None,
+        temperature: float = 0.9,
+        top_k: int = 50,
+        top_p: float = 0.95,
+        repetition_penalty: float = 1.0,
+        max_tokens: int = 4096,
+        length_threshold: int = 50,
+        window_size: int = 50,
+        split_fn: Optional[Callable[[str], list[str]]] = None,
+        audio_chunk_duration: float = 1.0,
+        max_audio_chunk_duration: float = 8.0,
+        audio_chunk_size_scale_factor: float = 2.0,
+        audio_chunk_overlap_duration: float = 0.1,
+        acoustic_tokens: Optional[SparkAcousticTokens | str] = None,
+        return_acoustic_tokens: bool = False,
+        **kwargs,
+    ) -> AsyncIterator[np.ndarray | SparkAcousticTokens]:
         name = name or "female"
         self.set_seed(seed=self.seed)
         out_acoustic_tokens = None
-        if name in ['female', 'male']:
+        if name in ["female", "male"]:
             async for chunk in self._control_stream_generate(
-                    text=text,
-                    gender=name,
-                    pitch=pitch,
-                    speed=speed,
-                    temperature=temperature,
-                    top_k=top_k,
-                    top_p=top_p,
-                    repetition_penalty=repetition_penalty,
-                    max_tokens=max_tokens,
-                    length_threshold=length_threshold,
-                    window_size=window_size,
-                    split_fn=split_fn,
-                    audio_chunk_duration=audio_chunk_duration,
-                    max_audio_chunk_duration=max_audio_chunk_duration,
-                    audio_chunk_size_scale_factor=audio_chunk_size_scale_factor,
-                    audio_chunk_overlap_duration=audio_chunk_overlap_duration,
-                    acoustic_tokens=acoustic_tokens,
-                    return_acoustic_tokens=return_acoustic_tokens,
-            ):
-                if isinstance(chunk, SparkAcousticTokens):
-                    out_acoustic_tokens = chunk
-                else:
-                    yield (chunk * 32767).astype(np.int16)
-        else:
-            speaker_data = await self.get_speaker(name)
-            if speaker_data is None:
-                raise ValueError(F'The role "{name}" does not exist.')
-            global_tokens = speaker_data['global_tokens'].detach().clone()
-            semantic_tokens = speaker_data['semantic_tokens'].detach().clone()
-            async for chunk in self._clone_voice_stream_by_tokens(
-                    text=text,
-                    global_tokens=global_tokens,
-                    semantic_tokens=semantic_tokens,
-                    reference_text=speaker_data['reference_text'],
-                    pitch=pitch,
-                    speed=speed,
-                    temperature=temperature,
-                    top_k=top_k,
-                    top_p=top_p,
-                    repetition_penalty=repetition_penalty,
-                    max_tokens=max_tokens,
-                    length_threshold=length_threshold,
-                    window_size=window_size,
-                    split_fn=split_fn,
-                    audio_chunk_duration=audio_chunk_duration,
-                    max_audio_chunk_duration=max_audio_chunk_duration,
-                    audio_chunk_size_scale_factor=audio_chunk_size_scale_factor,
-                    audio_chunk_overlap_duration=audio_chunk_overlap_duration,
-                    **kwargs
-            ):
-                yield (chunk * 32767).astype(np.int16)
-
-            del global_tokens
-            del semantic_tokens
-
-        if out_acoustic_tokens is not None:
-            yield out_acoustic_tokens
-
-        torch.cuda.empty_cache()
-
-    async def clone_voice_async(
-            self,
-            text: str,
-            reference_audio,
-            reference_text: Optional[str] = None,
-            pitch: Optional[Literal["very_low", "low", "moderate", "high", "very_high"]] = None,
-            speed: Optional[Literal["very_low", "low", "moderate", "high", "very_high"]] = None,
-            temperature: float = 0.9,
-            top_k: int = 50,
-            top_p: float = 0.95,
-            repetition_penalty: float = 1.0,
-            max_tokens: int = 4096,
-            length_threshold: int = 50,
-            window_size: int = 50,
-            split_fn: Optional[Callable[[str], list[str]]] = None,
-            **kwargs) -> np.ndarray:
-        self.set_seed(seed=self.seed)
-        tokens = await self._tokenize(
-            reference_audio
-        )
-        audio = await self._clone_voice_by_tokens(
-            text=text,
-            global_tokens=tokens['global_tokens'],
-            semantic_tokens=tokens['semantic_tokens'],
-            reference_text=reference_text,
-            pitch=pitch,
-            speed=speed,
-            temperature=temperature,
-            top_k=top_k,
-            top_p=top_p,
-            repetition_penalty=repetition_penalty,
-            max_tokens=max_tokens,
-            length_threshold=length_threshold,
-            window_size=window_size,
-            split_fn=split_fn,
-            **kwargs
-        )
-        torch.cuda.empty_cache()
-        return (audio * 32767).astype(np.int16)
-
-    async def clone_voice_stream_async(
-            self,
-            text: str,
-            reference_audio,
-            reference_text: Optional[str] = None,
-            pitch: Optional[Literal["very_low", "low", "moderate", "high", "very_high"]] = None,
-            speed: Optional[Literal["very_low", "low", "moderate", "high", "very_high"]] = None,
-            temperature: float = 0.9,
-            top_k: int = 50,
-            top_p: float = 0.95,
-            repetition_penalty: float = 1.0,
-            max_tokens: int = 4096,
-            length_threshold: int = 50,
-            window_size: int = 50,
-            split_fn: Optional[Callable[[str], list[str]]] = None,
-            audio_chunk_duration: float = 1.0,
-            max_audio_chunk_duration: float = 8.0,
-            audio_chunk_size_scale_factor: float = 2.0,
-            audio_chunk_overlap_duration: float = 0.1,
-            **kwargs) -> AsyncIterator[np.ndarray]:
-
-        self.set_seed(seed=self.seed)
-        tokens = await self._tokenize(
-            reference_audio
-        )
-        async for chunk in self._clone_voice_stream_by_tokens(
                 text=text,
-                global_tokens=tokens['global_tokens'],
-                semantic_tokens=tokens['semantic_tokens'],
-                reference_text=reference_text,
+                gender=name,
                 pitch=pitch,
                 speed=speed,
                 temperature=temperature,
@@ -1090,7 +1035,141 @@ class AsyncSparkEngine(BaseEngine):
                 max_audio_chunk_duration=max_audio_chunk_duration,
                 audio_chunk_size_scale_factor=audio_chunk_size_scale_factor,
                 audio_chunk_overlap_duration=audio_chunk_overlap_duration,
-                **kwargs
+                acoustic_tokens=acoustic_tokens,
+                return_acoustic_tokens=return_acoustic_tokens,
+            ):
+                if isinstance(chunk, SparkAcousticTokens):
+                    out_acoustic_tokens = chunk
+                else:
+                    yield (chunk * 32767).astype(np.int16)
+        else:
+            speaker_data = await self.get_speaker(name)
+            if speaker_data is None:
+                raise ValueError(f'The role "{name}" does not exist.')
+            global_tokens = speaker_data["global_tokens"].detach().clone()
+            semantic_tokens = speaker_data["semantic_tokens"].detach().clone()
+            async for chunk in self._clone_voice_stream_by_tokens(
+                text=text,
+                global_tokens=global_tokens,
+                semantic_tokens=semantic_tokens,
+                reference_text=speaker_data["reference_text"],
+                pitch=pitch,
+                speed=speed,
+                temperature=temperature,
+                top_k=top_k,
+                top_p=top_p,
+                repetition_penalty=repetition_penalty,
+                max_tokens=max_tokens,
+                length_threshold=length_threshold,
+                window_size=window_size,
+                split_fn=split_fn,
+                audio_chunk_duration=audio_chunk_duration,
+                max_audio_chunk_duration=max_audio_chunk_duration,
+                audio_chunk_size_scale_factor=audio_chunk_size_scale_factor,
+                audio_chunk_overlap_duration=audio_chunk_overlap_duration,
+                **kwargs,
+            ):
+                yield (chunk * 32767).astype(np.int16)
+
+            del global_tokens
+            del semantic_tokens
+
+        if out_acoustic_tokens is not None:
+            yield out_acoustic_tokens
+
+        torch.cuda.empty_cache()
+
+    async def clone_voice_async(
+        self,
+        text: str,
+        reference_audio,
+        reference_text: Optional[str] = None,
+        pitch: Optional[
+            Literal["very_low", "low", "moderate", "high", "very_high"]
+        ] = None,
+        speed: Optional[
+            Literal["very_low", "low", "moderate", "high", "very_high"]
+        ] = None,
+        temperature: float = 0.9,
+        top_k: int = 50,
+        top_p: float = 0.95,
+        repetition_penalty: float = 1.0,
+        max_tokens: int = 4096,
+        length_threshold: int = 50,
+        window_size: int = 50,
+        split_fn: Optional[Callable[[str], list[str]]] = None,
+        **kwargs,
+    ) -> np.ndarray:
+        self.set_seed(seed=self.seed)
+        tokens = await self._tokenize(reference_audio)
+        audio = await self._clone_voice_by_tokens(
+            text=text,
+            global_tokens=tokens["global_tokens"],
+            semantic_tokens=tokens["semantic_tokens"],
+            reference_text=reference_text,
+            pitch=pitch,
+            speed=speed,
+            temperature=temperature,
+            top_k=top_k,
+            top_p=top_p,
+            repetition_penalty=repetition_penalty,
+            max_tokens=max_tokens,
+            length_threshold=length_threshold,
+            window_size=window_size,
+            split_fn=split_fn,
+            **kwargs,
+        )
+        torch.cuda.empty_cache()
+        return (audio * 32767).astype(np.int16)
+
+    async def clone_voice_stream_async(
+        self,
+        text: str,
+        reference_audio,
+        reference_text: Optional[str] = None,
+        pitch: Optional[
+            Literal["very_low", "low", "moderate", "high", "very_high"]
+        ] = None,
+        speed: Optional[
+            Literal["very_low", "low", "moderate", "high", "very_high"]
+        ] = None,
+        temperature: float = 0.9,
+        top_k: int = 50,
+        top_p: float = 0.95,
+        repetition_penalty: float = 1.0,
+        max_tokens: int = 4096,
+        length_threshold: int = 50,
+        window_size: int = 50,
+        split_fn: Optional[Callable[[str], list[str]]] = None,
+        audio_chunk_duration: float = 1.0,
+        max_audio_chunk_duration: float = 8.0,
+        audio_chunk_size_scale_factor: float = 2.0,
+        audio_chunk_overlap_duration: float = 0.1,
+        **kwargs,
+    ) -> AsyncIterator[np.ndarray]:
+
+        self.set_seed(seed=self.seed)
+        tokens = await self._tokenize(reference_audio)
+        async for chunk in self._clone_voice_stream_by_tokens(
+            text=text,
+            global_tokens=tokens["global_tokens"],
+            semantic_tokens=tokens["semantic_tokens"],
+            reference_text=reference_text,
+            pitch=pitch,
+            speed=speed,
+            temperature=temperature,
+            top_k=top_k,
+            top_p=top_p,
+            repetition_penalty=repetition_penalty,
+            max_tokens=max_tokens,
+            length_threshold=length_threshold,
+            window_size=window_size,
+            split_fn=split_fn,
+            audio_chunk_duration=audio_chunk_duration,
+            max_audio_chunk_duration=max_audio_chunk_duration,
+            audio_chunk_size_scale_factor=audio_chunk_size_scale_factor,
+            audio_chunk_overlap_duration=audio_chunk_overlap_duration,
+            **kwargs,
         ):
             yield (chunk * 32767).astype(np.int16)
 

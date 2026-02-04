@@ -20,8 +20,8 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-# Copyright (c) [2022] [OpenAI] 
-# Copyright (c) [2025] [Ziyue Jiang] 
+# Copyright (c) [2022] [OpenAI]
+# Copyright (c) [2025] [Ziyue Jiang]
 # SPDX-License-Identifier: MIT
 # This file has been modified by Ziyue Jiang on 2025/03/19
 # Original file was released under MIT, with the full license text # available at https://github.com/openai/whisper/blob/v20240930/LICENSE.
@@ -56,7 +56,7 @@ class Linear(nn.Linear):
 
 class Conv1d(nn.Conv1d):
     def _conv_forward(
-            self, x: Tensor, weight: Tensor, bias: Optional[Tensor]
+        self, x: Tensor, weight: Tensor, bias: Optional[Tensor]
     ) -> Tensor:
         return super()._conv_forward(
             x, weight.to(x.dtype), None if bias is None else bias.to(x.dtype)
@@ -94,12 +94,12 @@ class MultiHeadAttention(nn.Module):
         self.out = Linear(n_state, n_state)
 
     def forward(
-            self,
-            x: Tensor,
-            xa: Optional[Tensor] = None,
-            mask: Optional[Tensor] = None,
-            kv_cache: Optional[dict] = None,
-            casual: Optional[bool] = None
+        self,
+        x: Tensor,
+        xa: Optional[Tensor] = None,
+        mask: Optional[Tensor] = None,
+        kv_cache: Optional[dict] = None,
+        casual: Optional[bool] = None,
     ):
         q = self.query(x)
 
@@ -117,7 +117,12 @@ class MultiHeadAttention(nn.Module):
         return self.out(wv)
 
     def qkv_attention(
-            self, q: Tensor, k: Tensor, v: Tensor, mask: Optional[Tensor] = None, casual: Optional[bool] = None
+        self,
+        q: Tensor,
+        k: Tensor,
+        v: Tensor,
+        mask: Optional[Tensor] = None,
+        casual: Optional[bool] = None,
     ) -> Tuple[torch.Tensor, Optional[torch.Tensor]]:
         n_batch, n_ctx, n_state = q.shape
         scale = (n_state // self.n_head) ** -0.25
@@ -126,7 +131,11 @@ class MultiHeadAttention(nn.Module):
         v = v.view(*v.shape[:2], self.n_head, -1).permute(0, 2, 1, 3)
 
         a = scaled_dot_product_attention(
-            q, k, v, is_causal=casual and n_ctx > 1, attn_mask=mask[:, None, None, :] if mask is not None else None
+            q,
+            k,
+            v,
+            is_causal=casual and n_ctx > 1,
+            attn_mask=mask[:, None, None, :] if mask is not None else None,
         )
         out = a.permute(0, 2, 1, 3).flatten(start_dim=2)
         return out
@@ -151,23 +160,25 @@ class ResidualAttentionBlock(nn.Module):
         self.mlp_ln = LayerNorm(n_state)
 
     def forward(
-            self,
-            x: Tensor,
-            xa: Optional[Tensor] = None,
-            mask: Optional[Tensor] = None,
-            kv_cache: Optional[dict] = None,
-            casual: Optional[bool] = None,
+        self,
+        x: Tensor,
+        xa: Optional[Tensor] = None,
+        mask: Optional[Tensor] = None,
+        kv_cache: Optional[dict] = None,
+        casual: Optional[bool] = None,
     ):
         x = x + self.attn(self.attn_ln(x), mask=mask, kv_cache=kv_cache, casual=casual)
         if self.cross_attn:
-            x = x + self.cross_attn(self.cross_attn_ln(x), xa, kv_cache=kv_cache, casual=False)
+            x = x + self.cross_attn(
+                self.cross_attn_ln(x), xa, kv_cache=kv_cache, casual=False
+            )
         x = x + self.mlp(self.mlp_ln(x))
         return x
 
 
 class AudioEncoder(nn.Module):
     def __init__(
-            self, n_mels: int, n_ctx: int, n_state: int, n_head: int, n_layer: int
+        self, n_mels: int, n_ctx: int, n_state: int, n_head: int, n_layer: int
     ):
         super().__init__()
         self.conv1 = Conv1d(n_mels, n_state, kernel_size=3, padding=1)
@@ -189,7 +200,7 @@ class AudioEncoder(nn.Module):
         x = x.permute(0, 2, 1)
 
         # assert x.shape[1:] == self.positional_embedding.shape, "incorrect audio shape"
-        x = (x + self.positional_embedding[:x.size(1)]).to(x.dtype)
+        x = (x + self.positional_embedding[: x.size(1)]).to(x.dtype)
 
         for block in self.blocks:
             x = block(x, mask=attn_mask, casual=False)
@@ -200,7 +211,7 @@ class AudioEncoder(nn.Module):
 
 class TextDecoder(nn.Module):
     def __init__(
-            self, n_vocab: int, n_ctx: int, n_state: int, n_head: int, n_layer: int
+        self, n_vocab: int, n_ctx: int, n_state: int, n_head: int, n_layer: int
     ):
         super().__init__()
 
@@ -217,7 +228,9 @@ class TextDecoder(nn.Module):
 
         self.out_proj = nn.Linear(n_state, n_vocab)
 
-    def forward(self, x: Tensor, attn_mask: Tensor, xa: Tensor, kv_cache: Optional[dict] = None):
+    def forward(
+        self, x: Tensor, attn_mask: Tensor, xa: Tensor, kv_cache: Optional[dict] = None
+    ):
         """
         x : torch.LongTensor, shape = (batch_size, <= n_ctx)
             the text tokens
@@ -226,8 +239,8 @@ class TextDecoder(nn.Module):
         """
         offset = next(iter(kv_cache.values())).shape[1] if kv_cache else 0
         x = (
-                self.token_embedding(x)
-                + self.positional_embedding[offset: offset + x.shape[-1]]
+            self.token_embedding(x)
+            + self.positional_embedding[offset : offset + x.shape[-1]]
         )
         x = x.to(xa.dtype)
 

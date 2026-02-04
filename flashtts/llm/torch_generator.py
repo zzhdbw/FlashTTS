@@ -12,7 +12,8 @@ from transformers import (
     GenerationConfig,
     StoppingCriteria,
     StoppingCriteriaList,
-    TextStreamer)
+    TextStreamer,
+)
 import uuid
 from typing import TYPE_CHECKING, Optional
 from queue import Queue
@@ -26,11 +27,11 @@ __all__ = ["TorchGenerator"]
 class ResIteratorStreamer(TextStreamer):
 
     def __init__(
-            self,
-            tokenizer: "AutoTokenizer",
-            skip_prompt: bool = False,
-            timeout: Optional[float] = None,
-            **decode_kwargs
+        self,
+        tokenizer: "AutoTokenizer",
+        skip_prompt: bool = False,
+        timeout: Optional[float] = None,
+        **decode_kwargs
     ):
         super().__init__(tokenizer, skip_prompt, **decode_kwargs)
         self.res_queue = Queue()
@@ -54,20 +55,22 @@ class ResIteratorStreamer(TextStreamer):
         self.token_cache.extend(value.tolist())
         text = self.tokenizer.decode(self.token_cache, **self.decode_kwargs)
 
-        printable_text = text[self.print_len:]
+        printable_text = text[self.print_len :]
         self.print_len += len(printable_text)
-        printable_tokens = self.token_cache[self.num_tokens:]
+        printable_tokens = self.token_cache[self.num_tokens :]
         self.num_tokens = len(self.token_cache)
 
-        self.on_finalized_res(GenerationResponse(text=printable_text, token_ids=printable_tokens))
+        self.on_finalized_res(
+            GenerationResponse(text=printable_text, token_ids=printable_tokens)
+        )
 
     def end(self):
         """Flushes any remaining cache and prints a newline to stdout."""
         # Flush the cache, if it exists
         if len(self.token_cache) > 0:
             text = self.tokenizer.decode(self.token_cache, **self.decode_kwargs)
-            printable_text = text[self.print_len:]
-            printable_tokens = self.token_cache[self.num_tokens:]
+            printable_text = text[self.print_len :]
+            printable_tokens = self.token_cache[self.num_tokens :]
             self.token_cache = []
             self.print_len = 0
         else:
@@ -75,7 +78,10 @@ class ResIteratorStreamer(TextStreamer):
             printable_tokens = []
 
         self.next_tokens_are_prompt = True
-        self.on_finalized_res(GenerationResponse(text=printable_text, token_ids=printable_tokens), stream_end=True)
+        self.on_finalized_res(
+            GenerationResponse(text=printable_text, token_ids=printable_tokens),
+            stream_end=True,
+        )
 
     def on_finalized_res(self, response: GenerationResponse, stream_end: bool = False):
         """Put the new text in the queue. If the stream is ending, also put a stop signal in the queue."""
@@ -99,7 +105,9 @@ class StopOnTokens(StoppingCriteria):
         self.stop_token_ids = stop_token_ids
         self.stop = []
 
-    def __call__(self, input_ids: torch.LongTensor, scores: torch.FloatTensor, **kwargs) -> bool:
+    def __call__(
+        self, input_ids: torch.LongTensor, scores: torch.FloatTensor, **kwargs
+    ) -> bool:
 
         for i, input_id in enumerate(input_ids):
             if i >= len(self.stop):
@@ -117,16 +125,20 @@ class StopOnTokens(StoppingCriteria):
 
 
 class TorchGenerator(BaseLLM):
-    def __init__(self,
-                 model_path: str,
-                 max_length: int = 32768,
-                 device: str = "cpu",
-                 attn_implementation: Optional[Literal["sdpa", "flash_attention_2", "eager"]] = None,
-                 torch_dtype: Literal['float16', "bfloat16", 'float32', 'auto'] = "auto",
-                 cache_implementation: Optional[str] = None,
-                 stop_tokens: Optional[list[str]] = None,
-                 stop_token_ids: Optional[List[int]] = None,
-                 **kwargs):
+    def __init__(
+        self,
+        model_path: str,
+        max_length: int = 32768,
+        device: str = "cpu",
+        attn_implementation: Optional[
+            Literal["sdpa", "flash_attention_2", "eager"]
+        ] = None,
+        torch_dtype: Literal["float16", "bfloat16", "float32", "auto"] = "auto",
+        cache_implementation: Optional[str] = None,
+        stop_tokens: Optional[list[str]] = None,
+        stop_token_ids: Optional[List[int]] = None,
+        **kwargs
+    ):
         self.device = torch.device(device)
         self.cache_implementation = cache_implementation
 
@@ -136,9 +148,7 @@ class TorchGenerator(BaseLLM):
             attn_implementation=attn_implementation,
             **kwargs
         )
-        self.model = AutoModelForCausalLM.from_pretrained(
-            **runtime_kwargs
-        )
+        self.model = AutoModelForCausalLM.from_pretrained(**runtime_kwargs)
         self.model.eval().to(self.device)
 
         self.streamer: dict[str, ResIteratorStreamer] = {}
@@ -151,15 +161,16 @@ class TorchGenerator(BaseLLM):
         )
 
     async def _generate(
-            self,
-            prompt_ids: list[int],
-            max_tokens: int = 1024,
-            temperature: float = 0.9,
-            top_p: float = 0.9,
-            top_k: int = 50,
-            repetition_penalty: float = 1.0,
-            skip_special_tokens: bool = True,
-            **kwargs) -> GenerationResponse:
+        self,
+        prompt_ids: list[int],
+        max_tokens: int = 1024,
+        temperature: float = 0.9,
+        top_p: float = 0.9,
+        top_k: int = 50,
+        repetition_penalty: float = 1.0,
+        skip_special_tokens: bool = True,
+        **kwargs
+    ) -> GenerationResponse:
         input_ids = torch.LongTensor([prompt_ids]).to(self.device)
         stop_criteria = StoppingCriteriaList([StopOnTokens(self.stop_token_ids)])
         generated_ids = self.model.generate(
@@ -182,7 +193,9 @@ class TorchGenerator(BaseLLM):
         )
         prompt_length = input_ids.size(1)
         completion_ids = generated_ids[0][prompt_length:]
-        completions_text = self.tokenizer.decode(completion_ids, skip_special_tokens=skip_special_tokens)
+        completions_text = self.tokenizer.decode(
+            completion_ids, skip_special_tokens=skip_special_tokens
+        )
 
         return GenerationResponse(
             text=completions_text,
@@ -190,24 +203,23 @@ class TorchGenerator(BaseLLM):
         )
 
     async def _stream_generate(
-            self,
-            prompt_ids: list[int],
-            max_tokens: int = 1024,
-            temperature: float = 0.9,
-            top_p: float = 0.9,
-            top_k: int = 50,
-            repetition_penalty: float = 1.0,
-            skip_special_tokens: bool = True,
-            **kwargs
+        self,
+        prompt_ids: list[int],
+        max_tokens: int = 1024,
+        temperature: float = 0.9,
+        top_p: float = 0.9,
+        top_k: int = 50,
+        repetition_penalty: float = 1.0,
+        skip_special_tokens: bool = True,
+        **kwargs
     ) -> AsyncIterator[GenerationResponse]:
         input_ids = torch.LongTensor([prompt_ids]).to(self.device)
         request_id = str(uuid.uuid4().hex)
 
         # 避免并发请求时，streamer错乱
         self.streamer[request_id] = ResIteratorStreamer(
-            self.tokenizer,
-            skip_prompt=True,
-            skip_special_tokens=skip_special_tokens)
+            self.tokenizer, skip_prompt=True, skip_special_tokens=skip_special_tokens
+        )
         cur_streamer = self.streamer[request_id]
         stop_criteria = StoppingCriteriaList([StopOnTokens(self.stop_token_ids)])
 
@@ -228,7 +240,8 @@ class TorchGenerator(BaseLLM):
                 **kwargs
             ),
             use_cache=True,
-            stopping_criteria=stop_criteria)
+            stopping_criteria=stop_criteria,
+        )
         Thread(target=self.model.generate, kwargs=generation_kwargs).start()
         for res in cur_streamer:
             yield res

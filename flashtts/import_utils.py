@@ -16,7 +16,9 @@ class _LazyModule(ModuleType):
 
     # Very heavily inspired by optuna.integration._IntegrationModule
     # https://github.com/optuna/optuna/blob/master/optuna/integration/__init__.py
-    def __init__(self, name, module_file, import_structure, module_spec=None, extra_objects=None):
+    def __init__(
+        self, name, module_file, import_structure, module_spec=None, extra_objects=None
+    ):
         super().__init__(name)
         self._modules = set(import_structure.keys())
         self._class_to_module = {}
@@ -24,7 +26,9 @@ class _LazyModule(ModuleType):
             for value in values:
                 self._class_to_module[value] = key
         # Needed for autocompletion in an IDE
-        self.__all__ = list(import_structure.keys()) + list(chain(*import_structure.values()))
+        self.__all__ = list(import_structure.keys()) + list(
+            chain(*import_structure.values())
+        )
         self.__file__ = module_file
         self.__spec__ = module_spec
         self.__path__ = [os.path.dirname(module_file)]
@@ -70,8 +74,8 @@ class _LazyModule(ModuleType):
 
 
 def _is_package_available(
-        pkg_name: str,
-        return_version: bool = False) -> Union[Tuple[bool, str], bool]:
+    pkg_name: str, return_version: bool = False
+) -> Union[Tuple[bool, str], bool]:
     package_exists = importlib.util.find_spec(pkg_name) is not None
     package_version = "N/A"
     if package_exists:

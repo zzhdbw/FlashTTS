@@ -5,24 +5,12 @@ from ..import_utils import _LazyModule
 from typing import TYPE_CHECKING
 
 _import_structure = {
-    "tokenizer": [
-        "SparkTokenizer",
-        "MegaTokenizer"
-    ],
-    "detokenizer": [
-        'SparkDeTokenizer',
-        "SnacDeTokenizer"
-    ]
+    "tokenizer": ["SparkTokenizer", "MegaTokenizer"],
+    "detokenizer": ["SparkDeTokenizer", "SnacDeTokenizer"],
 }
 if TYPE_CHECKING:
-    from .tokenizer import (
-        SparkTokenizer,
-        MegaTokenizer
-    )
-    from .detokenizer import (
-        SparkDeTokenizer,
-        SnacDeTokenizer
-    )
+    from .tokenizer import SparkTokenizer, MegaTokenizer
+    from .detokenizer import SparkDeTokenizer, SnacDeTokenizer
 
 else:
     import sys

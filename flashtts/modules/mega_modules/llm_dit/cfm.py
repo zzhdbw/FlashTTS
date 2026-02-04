@@ -250,7 +250,7 @@ class ConditionalFlowMatcher:
         [4] Simulation-free Schrodinger bridges via score and flow matching, Preprint, Tong et al.
         """
         sigma_t = self.compute_sigma_t(t)
-        return 2 * sigma_t / (self.sigma ** 2 + 1e-8)
+        return 2 * sigma_t / (self.sigma**2 + 1e-8)
 
 
 class VariancePreservingConditionalFlowMatcher(ConditionalFlowMatcher):
@@ -310,4 +310,8 @@ class VariancePreservingConditionalFlowMatcher(ConditionalFlowMatcher):
         """
         del xt
         t = pad_t_like_x(t, x0)
-        return math.pi / 2 * (torch.cos(math.pi / 2 * t) * x1 - torch.sin(math.pi / 2 * t) * x0)
+        return (
+            math.pi
+            / 2
+            * (torch.cos(math.pi / 2 * t) * x1 - torch.sin(math.pi / 2 * t) * x0)
+        )

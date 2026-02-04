@@ -16,7 +16,6 @@ from torch.amp import autocast
 
 from einops import rearrange, pack, unpack
 
-
 # helper functions
 
 
@@ -63,17 +62,17 @@ def round_ste(z: Tensor) -> Tensor:
 
 class FSQ(Module):
     def __init__(
-            self,
-            levels: List[int],
-            dim: int | None = None,
-            num_codebooks=1,
-            keep_num_codebooks_dim: bool | None = None,
-            scale: float | None = None,
-            allowed_dtypes: Tuple[torch.dtype, ...] = (torch.float32, torch.float64),
-            channel_first: bool = False,
-            projection_has_bias: bool = True,
-            return_indices=True,
-            force_quantization_f32=True,
+        self,
+        levels: List[int],
+        dim: int | None = None,
+        num_codebooks=1,
+        keep_num_codebooks_dim: bool | None = None,
+        scale: float | None = None,
+        allowed_dtypes: Tuple[torch.dtype, ...] = (torch.float32, torch.float64),
+        channel_first: bool = False,
+        projection_has_bias: bool = True,
+        return_indices=True,
+        force_quantization_f32=True,
     ):
         super().__init__()
         _levels = torch.tensor(levels, dtype=int32)
@@ -199,7 +198,7 @@ class FSQ(Module):
             z, ps = pack_one(z, "b * d")
 
         assert (
-                z.shape[-1] == self.dim
+            z.shape[-1] == self.dim
         ), f"expected dimension of {self.dim} but found dimension of {z.shape[-1]}"
 
         z = self.project_in(z)

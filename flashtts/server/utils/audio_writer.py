@@ -53,7 +53,7 @@ class StreamingAudioWriter:
             self.output_buffer.close()
 
     def write_chunk(
-            self, audio_data: Optional[np.ndarray] = None, finalize: bool = False
+        self, audio_data: Optional[np.ndarray] = None, finalize: bool = False
     ) -> bytes:
         """Write a chunk of audio data and return bytes in the target format.
 

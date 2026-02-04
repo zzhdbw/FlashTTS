@@ -25,27 +25,27 @@ def contains_chinese(s: str) -> bool:
     """
     判断字符串中是否包含中文字符
     """
-    return bool(re.search(r'[\u4e00-\u9fff]', s))
+    return bool(re.search(r"[\u4e00-\u9fff]", s))
 
 
 # 以下代码从cosyvoice项目copy的
 def is_only_punctuation(text):
     # Regular expression: Match strings that consist only of punctuation marks or are empty.
-    punctuation_pattern = r'^[\p{P}\p{S}]*$'
+    punctuation_pattern = r"^[\p{P}\p{S}]*$"
     return bool(regex.fullmatch(punctuation_pattern, text))
 
 
 def replace_corner_mark(text):
-    text = text.replace('²', '平方')
-    text = text.replace('³', '立方')
+    text = text.replace("²", "平方")
+    text = text.replace("³", "立方")
     return text
 
 
 # remove meaningless symbol
 def remove_bracket(text):
-    text = text.replace('（', '').replace('）', '')
-    text = text.replace('【', '').replace('】', '')
-    text = text.replace('`', '').replace('`', '')
+    text = text.replace("（", "").replace("）", "")
+    text = text.replace("【", "").replace("】", "")
+    text = text.replace("`", "").replace("`", "")
     text = text.replace("——", " ")
     return text
 
@@ -57,18 +57,18 @@ def text_normalize(text: str) -> str:
         text = text.replace(".", "。")
         text = text.replace(" - ", "，")
         text = remove_bracket(text)
-        text = re.sub(r'[，,、]+$', '。', text)
-        if text[-1] not in ['。', '？', '！', '；', '：', '、', '.', '?', '!', ';']:
+        text = re.sub(r"[，,、]+$", "。", text)
+        if text[-1] not in ["。", "？", "！", "；", "：", "、", ".", "?", "!", ";"]:
             text += "。"
     return text
 
 
 def split_text(
-        text: str,
-        window_size: int,
-        tokenize_fn: Callable[[str], list[str]],
-        split_fn: Optional[Callable[[str], list[str]]] = None,
-        length_threshold: int = 50,
+    text: str,
+    window_size: int,
+    tokenize_fn: Callable[[str], list[str]],
+    split_fn: Optional[Callable[[str], list[str]]] = None,
+    length_threshold: int = 50,
 ) -> list[str]:
     """
     将长文本拆分成多个片段。首先使用中英文句号、问号、感叹号等切分文本，
@@ -89,7 +89,7 @@ def split_text(
         return [text]
 
     if split_fn is None:
-        sentences = re.split(r'(?<=[。？！；;.!?：:])', text)
+        sentences = re.split(r"(?<=[。？！；;.!?：:])", text)
         # 去除拆分过程中产生的空字符串，并去除两侧空白
     else:
         sentences = split_fn(text)
@@ -139,7 +139,7 @@ def parse_multi_speaker_text(text, speakers):
     valid_attributes = ["very_low", "low", "moderate", "high", "very_high"]
 
     # 使用正则表达式匹配标记和标记后的文本
-    pattern = r'<role:([^,>]+)(?:,pitch:([^,>]+))?(?:,speed:([^,>]+))?>'
+    pattern = r"<role:([^,>]+)(?:,pitch:([^,>]+))?(?:,speed:([^,>]+))?>"
     parts = re.split(pattern, text)
 
     result = []
@@ -157,26 +157,29 @@ def parse_multi_speaker_text(text, speakers):
 
         # 验证角色是否在允许列表中
         if role not in speakers:
-            logger.warning(f"{role}并不在已有的角色列表（{', '.join(speakers)}）中，将跳过该角色的文本。")
+            logger.warning(
+                f"{role}并不在已有的角色列表（{', '.join(speakers)}）中，将跳过该角色的文本。"
+            )
             i += 4
             continue
 
         # 验证pitch和speed的值是否合法
         if pitch and pitch not in valid_attributes:
-            logger.warning(f"属性pitch的值'{pitch}'不合法，将设为None。合法值为: {', '.join(valid_attributes)}")
+            logger.warning(
+                f"属性pitch的值'{pitch}'不合法，将设为None。合法值为: {', '.join(valid_attributes)}"
+            )
             pitch = None
 
         if speed and speed not in valid_attributes:
-            logger.warning(f"属性speed的值'{speed}'不合法，将设为None。合法值为: {', '.join(valid_attributes)}")
+            logger.warning(
+                f"属性speed的值'{speed}'不合法，将设为None。合法值为: {', '.join(valid_attributes)}"
+            )
             speed = None
 
         if dialogue:
-            result.append({
-                "name": role,
-                "text": dialogue,
-                "pitch": pitch,
-                "speed": speed
-            })
+            result.append(
+                {"name": role, "text": dialogue, "pitch": pitch, "speed": speed}
+            )
 
         i += 4
 

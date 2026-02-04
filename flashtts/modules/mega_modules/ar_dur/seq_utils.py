@@ -31,9 +31,7 @@ def make_positions(tensor, padding_idx):
     # prefers ints, cumsum defaults to output longs, and ONNX doesn't know
     # how to handle the dtype kwarg in cumsum.
     mask = tensor.ne(padding_idx).int()
-    return (
-                   torch.cumsum(mask, dim=1).type_as(mask) * mask
-           ).long() + padding_idx
+    return (torch.cumsum(mask, dim=1).type_as(mask) * mask).long() + padding_idx
 
 
 def softmax(x, dim):
@@ -43,7 +41,10 @@ def softmax(x, dim):
 def sequence_mask(lengths, maxlen=None, dtype=torch.bool):
     if maxlen is None:
         maxlen = lengths.max()
-    mask = ~(torch.ones((len(lengths), maxlen)).to(lengths.device).cumsum(dim=1).t() > lengths).t()
+    mask = ~(
+        torch.ones((len(lengths), maxlen)).to(lengths.device).cumsum(dim=1).t()
+        > lengths
+    ).t()
     mask.type(dtype)
     return mask
 
@@ -63,11 +64,11 @@ def _get_full_incremental_state_key(module_instance, key):
 
     # assign a unique ID to each module instance, so that incremental state is
     # not shared across module instances
-    if not hasattr(module_instance, '_instance_id'):
+    if not hasattr(module_instance, "_instance_id"):
         INCREMENTAL_STATE_INSTANCE_ID[module_name] += 1
         module_instance._instance_id = INCREMENTAL_STATE_INSTANCE_ID[module_name]
 
-    return '{}.{}.{}'.format(module_name, module_instance._instance_id, key)
+    return "{}.{}.{}".format(module_name, module_instance._instance_id, key)
 
 
 def get_incremental_state(module, incremental_state, key):
@@ -87,7 +88,7 @@ def set_incremental_state(module, incremental_state, key, value):
 
 def fill_with_neg_inf(t):
     """FP16-compatible function that fills a tensor with -inf."""
-    return t.float().fill_(float('-inf')).type_as(t)
+    return t.float().fill_(float("-inf")).type_as(t)
 
 
 def fill_with_neg_inf2(t):
@@ -95,7 +96,7 @@ def fill_with_neg_inf2(t):
     return t.float().fill_(-1e8).type_as(t)
 
 
-def select_attn(attn_logits, type='best'):
+def select_attn(attn_logits, type="best"):
     """
 
     :param attn_logits: [n_layers, B, n_head, T_sp, T_txt]
@@ -104,12 +105,16 @@ def select_attn(attn_logits, type='best'):
     encdec_attn = torch.stack(attn_logits, 0).transpose(1, 2)
     # [n_layers * n_head, B, T_sp, T_txt]
     encdec_attn = (encdec_attn.reshape([-1, *encdec_attn.shape[2:]])).softmax(-1)
-    if type == 'best':
+    if type == "best":
         indices = encdec_attn.max(-1).values.sum(-1).argmax(0)
         encdec_attn = encdec_attn.gather(
-            0, indices[None, :, None, None].repeat(1, 1, encdec_attn.size(-2), encdec_attn.size(-1)))[0]
+            0,
+            indices[None, :, None, None].repeat(
+                1, 1, encdec_attn.size(-2), encdec_attn.size(-1)
+            ),
+        )[0]
         return encdec_attn
-    elif type == 'mean':
+    elif type == "mean":
         return encdec_attn.mean(0)
 
 
@@ -314,13 +319,18 @@ def group_hidden_by_segs(h, seg_ids, max_len):
     :return: h_ph: [B, T_ph, H]
     """
     B, T, H = h.shape
-    h_gby_segs = h.new_zeros([B, max_len + 1, H]).scatter_add_(1, seg_ids[:, :, None].repeat([1, 1, H]), h)
+    h_gby_segs = h.new_zeros([B, max_len + 1, H]).scatter_add_(
+        1, seg_ids[:, :, None].repeat([1, 1, H]), h
+    )
     all_ones = h.new_ones(h.shape[:2])
-    cnt_gby_segs = h.new_zeros([B, max_len + 1]).scatter_add_(1, seg_ids, all_ones).contiguous()
+    cnt_gby_segs = (
+        h.new_zeros([B, max_len + 1]).scatter_add_(1, seg_ids, all_ones).contiguous()
+    )
     h_gby_segs = h_gby_segs[:, 1:]
     cnt_gby_segs = cnt_gby_segs[:, 1:]
     h_gby_segs = h_gby_segs / torch.clamp(cnt_gby_segs[:, :, None], min=1)
     return h_gby_segs, cnt_gby_segs
+
 
 def expand_by_repeat_times(source_encoding, lengths):
     """
@@ -340,7 +350,7 @@ def expand_by_repeat_times(source_encoding, lengths):
 
 
 def expand_word2ph(word_encoding, ph2word):
-    word_encoding = F.pad(word_encoding,[0,0,1,0])
+    word_encoding = F.pad(word_encoding, [0, 0, 1, 0])
     ph2word_ = ph2word[:, :, None].repeat([1, 1, word_encoding.shape[-1]])
     out = torch.gather(word_encoding, 1, ph2word_)  # [B, T, H]
     return out

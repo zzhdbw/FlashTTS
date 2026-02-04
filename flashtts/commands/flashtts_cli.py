@@ -12,7 +12,7 @@ def main():
     parser = ArgumentParser(
         "FlashTTS CLI tool",
         usage="flashtts <command> [<args>]",
-        epilog="For more information about a command, run: `flashtts <command> --help`"
+        epilog="For more information about a command, run: `flashtts <command> --help`",
     )
     commands_parser = parser.add_subparsers(help="flashtts command helpers")
 

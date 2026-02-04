@@ -16,7 +16,9 @@ def mel2token_to_dur(mel2token, T_txt=None, max_dur=None):
         mel2token = mel2token[None, ...]
         has_batch_dim = False
     B, _ = mel2token.shape
-    dur = mel2token.new_zeros(B, T_txt + 1).scatter_add(1, mel2token, torch.ones_like(mel2token))
+    dur = mel2token.new_zeros(B, T_txt + 1).scatter_add(
+        1, mel2token, torch.ones_like(mel2token)
+    )
     dur = dur[:, 1:]
     if max_dur is not None:
         dur = dur.clamp(max=max_dur)

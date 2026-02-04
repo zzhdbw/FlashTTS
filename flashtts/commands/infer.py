@@ -24,38 +24,38 @@ class InferCommand(BaseCLICommand):
             "-i",
             "--input",
             type=str,
-            help="The text or txt file that needs to be processed."
+            help="The text or txt file that needs to be processed.",
         )
         infer_parser.add_argument(
             "-o",
             "--output",
             type=str,
             default="output.wav",
-            help="The output path of the generated audio. default to `output.wav`"
+            help="The output path of the generated audio. default to `output.wav`",
         )
         infer_parser.add_argument(
             "--name",
             type=str,
             default=None,
-            help="Voice role name. If provided, synthesis will be performed using the built-in audio role voice."
+            help="Voice role name. If provided, synthesis will be performed using the built-in audio role voice.",
         )
         infer_parser.add_argument(
             "--reference_audio",
             type=str,
             default=None,
-            help="Reference audio path (.wav). If specified, the reference audio will be used for voice cloning."
+            help="Reference audio path (.wav). If specified, the reference audio will be used for voice cloning.",
         )
         infer_parser.add_argument(
             "--reference_text",
             type=str,
             default=None,
-            help="Reference text. The transcribed text content of the reference audio. It is only required for the SparkTTS model."
+            help="Reference text. The transcribed text content of the reference audio. It is only required for the SparkTTS model.",
         )
         infer_parser.add_argument(
             "--latent_file",
             type=str,
             default=None,
-            help="The latent file (.npy) of reference audio. It is only required for the MegaTTS3 model."
+            help="The latent file (.npy) of reference audio. It is only required for the MegaTTS3 model.",
         )
         add_model_parser(infer_parser)
         add_generate_parser(infer_parser)
@@ -84,7 +84,7 @@ class InferCommand(BaseCLICommand):
             llm_batch_size=args.llm_batch_size,
             wait_timeout=args.wait_timeout,
             cache_implementation=args.cache_implementation,
-            seed=args.seed
+            seed=args.seed,
         )
         logger.info("Model loaded.")
         self._args = args
@@ -92,7 +92,7 @@ class InferCommand(BaseCLICommand):
     @classmethod
     def read_input(cls, inp: str) -> str:
         if os.path.isfile(inp) and inp.endswith(".txt"):
-            with open(inp, "r", encoding='utf-8') as f:
+            with open(inp, "r", encoding="utf-8") as f:
                 return f.read()
         else:
             return inp
@@ -106,38 +106,47 @@ class InferCommand(BaseCLICommand):
             reference_audio = self._args.reference_audio
             if self.engine.engine_name == "mega":
                 if self._args.latent_file is None:
-                    logger.error("The MegaTTS3 model requires the latent_file argument.")
+                    logger.error(
+                        "The MegaTTS3 model requires the latent_file argument."
+                    )
                     return
                 else:
                     latent_file = self._args.latent_file
                     reference_audio = (reference_audio, latent_file)
                     self._args.reference_text = None
-            ref_text = self.read_input(
-                self._args.reference_text) if self._args.reference_text is not None else self._args.reference_text
-            audio = asyncio.run(self.engine.clone_voice_async(
-                text=input_str,
-                reference_audio=reference_audio,
-                reference_text=ref_text,
-                pitch=self._args.pitch,
-                speed=self._args.speed,
-                temperature=self._args.temperature,
-                top_k=self._args.top_k,
-                top_p=self._args.top_p,
-                repetition_penalty=self._args.repetition_penalty,
-                max_tokens=self._args.max_tokens
-            ))
+            ref_text = (
+                self.read_input(self._args.reference_text)
+                if self._args.reference_text is not None
+                else self._args.reference_text
+            )
+            audio = asyncio.run(
+                self.engine.clone_voice_async(
+                    text=input_str,
+                    reference_audio=reference_audio,
+                    reference_text=ref_text,
+                    pitch=self._args.pitch,
+                    speed=self._args.speed,
+                    temperature=self._args.temperature,
+                    top_k=self._args.top_k,
+                    top_p=self._args.top_p,
+                    repetition_penalty=self._args.repetition_penalty,
+                    max_tokens=self._args.max_tokens,
+                )
+            )
         else:
-            audio = asyncio.run(self.engine.speak_async(
-                text=input_str,
-                name=self._args.name,
-                pitch=self._args.pitch,
-                speed=self._args.speed,
-                temperature=self._args.temperature,
-                top_k=self._args.top_k,
-                top_p=self._args.top_p,
-                repetition_penalty=self._args.repetition_penalty,
-                max_tokens=self._args.max_tokens
-            ))
+            audio = asyncio.run(
+                self.engine.speak_async(
+                    text=input_str,
+                    name=self._args.name,
+                    pitch=self._args.pitch,
+                    speed=self._args.speed,
+                    temperature=self._args.temperature,
+                    top_k=self._args.top_k,
+                    top_p=self._args.top_p,
+                    repetition_penalty=self._args.repetition_penalty,
+                    max_tokens=self._args.max_tokens,
+                )
+            )
         self.engine.write_audio(audio, self._args.output)
 
         self.engine.shutdown()

@@ -15,6 +15,7 @@
 import torch
 import numpy as np
 
+
 class DiagonalGaussianDistribution(object):
     def __init__(self, parameters: torch.Tensor, deterministic: bool = False):
         self.parameters = parameters

@@ -27,9 +27,7 @@ class SparkDeTokenizerModel(SparkBaseModel):
 
     @torch.no_grad()
     def forward(
-            self,
-            semantic_tokens: torch.Tensor,
-            global_tokens: torch.Tensor
+        self, semantic_tokens: torch.Tensor, global_tokens: torch.Tensor
     ) -> torch.Tensor:
         z_q = self.quantizer.detokenize(semantic_tokens)
         d_vector = self.speaker_encoder.detokenize(global_tokens)
@@ -41,11 +39,12 @@ class SparkDeTokenizerModel(SparkBaseModel):
 
 class SparkDeTokenizer:
     def __init__(
-            self,
-            model_path: str,
-            device: Literal["cpu", "cuda", "mps"] | str = "cpu",
-            batch_size: int = 32,
-            wait_timeout: float = 0.01):
+        self,
+        model_path: str,
+        device: Literal["cpu", "cuda", "mps"] | str = "cpu",
+        batch_size: int = 32,
+        wait_timeout: float = 0.01,
+    ):
         self.device = torch.device(device)
         self.model = SparkDeTokenizerModel.from_pretrained(
             os.path.join(model_path, "BiCodec")
@@ -55,53 +54,57 @@ class SparkDeTokenizer:
         self._batch_processor = AsyncBatchEngine(
             processing_function=self.batch_detokenize_async,
             batch_size=batch_size,
-            wait_timeout=wait_timeout
+            wait_timeout=wait_timeout,
         )
 
     @torch.no_grad()
     def detokenize(
-            self,
-            semantic_tokens: torch.Tensor,
-            global_tokens: torch.Tensor
+        self, semantic_tokens: torch.Tensor, global_tokens: torch.Tensor
     ) -> torch.Tensor:
         with torch.amp.autocast(self.device_type, dtype=self.dtype):
             output = self.model(
-                semantic_tokens.to(self.device),
-                global_tokens.to(self.device)
+                semantic_tokens.to(self.device), global_tokens.to(self.device)
             )
         return output
 
-    async def batch_detokenize_async(self, requests: list[dict[str, torch.Tensor]]) -> list[dict[str, torch.Tensor]]:
+    async def batch_detokenize_async(
+        self, requests: list[dict[str, torch.Tensor]]
+    ) -> list[dict[str, torch.Tensor]]:
         semantic_tokens, global_tokens = [], []
         lengths = []
         for request in requests:
             semantic_tokens.append(request["semantic_tokens"])
             global_tokens.append(request["global_tokens"])
-            lengths.append(len(request['semantic_tokens']))
+            lengths.append(len(request["semantic_tokens"]))
         # Concatenate tokens for batch processing
         global_tokens = torch.stack(global_tokens, dim=0)
         semantic_tokens = torch.nn.utils.rnn.pad_sequence(
             semantic_tokens, batch_first=True, padding_value=0
         )
 
-        audios = self.detokenize(
-            semantic_tokens=semantic_tokens,
-            global_tokens=global_tokens
-        ).detach().cpu()
+        audios = (
+            self.detokenize(
+                semantic_tokens=semantic_tokens, global_tokens=global_tokens
+            )
+            .detach()
+            .cpu()
+        )
         # Prepare responses
         responses = []
         for i in range(len(requests)):
-            audio = audios[i, :, :(lengths[i] * 320)]  # 大概一个token对应audio长度320
-            responses.append({
-                "audio": audio,
-            })
+            audio = audios[i, :, : (lengths[i] * 320)]  # 大概一个token对应audio长度320
+            responses.append(
+                {
+                    "audio": audio,
+                }
+            )
 
         if self.device.type == "cuda":
             torch.cuda.empty_cache()
         return responses
 
-    async def detokenize_async(self, request: dict[str, torch.Tensor]) -> dict[str, torch.Tensor]:
-        output = await self._batch_processor.add_request(
-            single_input=request
-        )
+    async def detokenize_async(
+        self, request: dict[str, torch.Tensor]
+    ) -> dict[str, torch.Tensor]:
+        output = await self._batch_processor.add_request(single_input=request)
         return output.get("feature")

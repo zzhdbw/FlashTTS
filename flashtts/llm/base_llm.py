@@ -16,11 +16,11 @@ class GenerationResponse:
 class BaseLLM:
 
     def __init__(
-            self,
-            tokenizer,
-            max_length: int,
-            stop_tokens: Optional[list[str]] = None,
-            stop_token_ids: Optional[List[int]] = None
+        self,
+        tokenizer,
+        max_length: int,
+        stop_tokens: Optional[list[str]] = None,
+        stop_token_ids: Optional[List[int]] = None,
     ):
         self.max_length = max_length
         if isinstance(tokenizer, str):
@@ -35,7 +35,9 @@ class BaseLLM:
         if stop_tokens is None:
             stop_tokens = []
         if len(stop_tokens) > 0:
-            stop_token_ids = stop_token_ids + self.tokenizer.convert_tokens_to_ids(stop_tokens)
+            stop_token_ids = stop_token_ids + self.tokenizer.convert_tokens_to_ids(
+                stop_tokens
+            )
 
         self.stop_token_ids = stop_token_ids
         self.stop_tokens = self.tokenizer.convert_ids_to_tokens(self.stop_token_ids)
@@ -49,10 +51,7 @@ class BaseLLM:
         src_len = max(src_len, 256)
         if isinstance(text, str):
             tokens = self.tokenizer.encode(
-                text,
-                add_special_tokens=False,
-                truncation=False,
-                padding=False
+                text, add_special_tokens=False, truncation=False, padding=False
             )
         else:
             tokens = text
@@ -64,40 +63,41 @@ class BaseLLM:
         return str(uuid.uuid4().hex)
 
     async def _stream_generate(
-            self,
-            prompt_ids: list[int],
-            max_tokens: int = 1024,
-            temperature: float = 0.9,
-            top_p: float = 0.9,
-            top_k: int = 50,
-            repetition_penalty: float = 1.0,
-            skip_special_tokens: bool = True,
-            **kwargs
+        self,
+        prompt_ids: list[int],
+        max_tokens: int = 1024,
+        temperature: float = 0.9,
+        top_p: float = 0.9,
+        top_k: int = 50,
+        repetition_penalty: float = 1.0,
+        skip_special_tokens: bool = True,
+        **kwargs
     ) -> AsyncIterator[GenerationResponse]:
         yield NotImplementedError
 
     async def _generate(
-            self,
-            prompt_ids: list[int],
-            max_tokens: int = 1024,
-            temperature: float = 0.9,
-            top_p: float = 0.9,
-            top_k: int = 50,
-            repetition_penalty: float = 1.0,
-            skip_special_tokens: bool = True,
-            **kwargs) -> GenerationResponse:
+        self,
+        prompt_ids: list[int],
+        max_tokens: int = 1024,
+        temperature: float = 0.9,
+        top_p: float = 0.9,
+        top_k: int = 50,
+        repetition_penalty: float = 1.0,
+        skip_special_tokens: bool = True,
+        **kwargs
+    ) -> GenerationResponse:
         raise NotImplementedError
 
     async def async_generate(
-            self,
-            prompt: str | list[int],
-            max_tokens: int = 1024,
-            temperature: float = 0.9,
-            top_p: float = 0.9,
-            top_k: int = 50,
-            repetition_penalty: float = 1.0,
-            skip_special_tokens: bool = True,
-            **kwargs
+        self,
+        prompt: str | list[int],
+        max_tokens: int = 1024,
+        temperature: float = 0.9,
+        top_p: float = 0.9,
+        top_k: int = 50,
+        repetition_penalty: float = 1.0,
+        skip_special_tokens: bool = True,
+        **kwargs
     ) -> GenerationResponse:
         max_tokens = self.valid_max_tokens(max_tokens)
         token_ids = self.tokenize(prompt, max_tokens)
@@ -114,26 +114,27 @@ class BaseLLM:
         return response
 
     async def async_stream_generate(
-            self,
-            prompt: str | list[int],
-            max_tokens: int = 1024,
-            temperature: float = 0.9,
-            top_p: float = 0.9,
-            top_k: int = 50,
-            repetition_penalty: float = 1.0,
-            skip_special_tokens: bool = True,
-            **kwargs) -> AsyncIterator[GenerationResponse]:
+        self,
+        prompt: str | list[int],
+        max_tokens: int = 1024,
+        temperature: float = 0.9,
+        top_p: float = 0.9,
+        top_k: int = 50,
+        repetition_penalty: float = 1.0,
+        skip_special_tokens: bool = True,
+        **kwargs
+    ) -> AsyncIterator[GenerationResponse]:
         max_tokens = self.valid_max_tokens(max_tokens)
         token_ids = self.tokenize(prompt, max_tokens)
         async for chunk in self._stream_generate(
-                prompt_ids=token_ids,
-                max_tokens=max_tokens,
-                temperature=temperature,
-                top_p=top_p,
-                top_k=top_k,
-                repetition_penalty=repetition_penalty,
-                skip_special_tokens=skip_special_tokens,
-                **kwargs
+            prompt_ids=token_ids,
+            max_tokens=max_tokens,
+            temperature=temperature,
+            top_p=top_p,
+            top_k=top_k,
+            repetition_penalty=repetition_penalty,
+            skip_special_tokens=skip_special_tokens,
+            **kwargs
         ):
             yield chunk
 

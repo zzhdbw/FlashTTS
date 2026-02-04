@@ -11,57 +11,51 @@ from ..logger import get_logger
 logger = get_logger()
 
 _ENGINE_DIR_NAMES = {
-    "spark": [
-        "LLM",
-        "BiCodec",
-        "wav2vec2-large-xlsr-53"
-    ],
-    "orpheus": [
-        "snac"
-    ],
-    "mega": [
-        "aligner_lm",
-        "diffusion_transformer",
-        "duration_lm",
-        "g2p",
-        "wavvae"
-    ]
+    "spark": ["LLM", "BiCodec", "wav2vec2-large-xlsr-53"],
+    "orpheus": ["snac"],
+    "mega": ["aligner_lm", "diffusion_transformer", "duration_lm", "g2p", "wavvae"],
 }
 
 
 class AutoEngine(Engine):
     def __init__(
-            self,
-            model_path: str,
-            max_length: int = 32768,
-            snac_path: Optional[str] = None,
-            lang: Literal[
-                "mandarin",
-                "french",
-                "german",
-                "korean",
-                "hindi",
-                "spanish",
-                "italian",
-                "spanish_italian",
-                "english",
-                None
-            ] = None,
-            llm_device: Literal["cpu", "cuda", "mps", "auto"] | str = "auto",
-            tokenizer_device: Literal["cpu", "cuda", "mps", "auto"] | str = "auto",
-            detokenizer_device: Literal["cpu", "cuda", "mps", "auto"] | str = "auto",
-            llm_tensorrt_path: Optional[str] = None,
-            backend: Literal["vllm", "llama-cpp", "sglang", "torch", "mlx-lm", "tensorrt-llm"] = "torch",
-            wav2vec_attn_implementation: Optional[Literal["sdpa", "flash_attention_2", "eager"]] = None,
-            llm_attn_implementation: Optional[Literal["sdpa", "flash_attention_2", "eager"]] = None,
-            torch_dtype: Literal['float16', "bfloat16", 'float32', 'auto'] = "auto",
-            llm_gpu_memory_utilization: Optional[float] = 0.6,
-            cache_implementation: Optional[str] = None,
-            batch_size: int = 1,
-            llm_batch_size: int = 8,
-            wait_timeout: float = 0.01,
-            seed: int = 0,
-            **kwargs,
+        self,
+        model_path: str,
+        max_length: int = 32768,
+        snac_path: Optional[str] = None,
+        lang: Literal[
+            "mandarin",
+            "french",
+            "german",
+            "korean",
+            "hindi",
+            "spanish",
+            "italian",
+            "spanish_italian",
+            "english",
+            None,
+        ] = None,
+        llm_device: Literal["cpu", "cuda", "mps", "auto"] | str = "auto",
+        tokenizer_device: Literal["cpu", "cuda", "mps", "auto"] | str = "auto",
+        detokenizer_device: Literal["cpu", "cuda", "mps", "auto"] | str = "auto",
+        llm_tensorrt_path: Optional[str] = None,
+        backend: Literal[
+            "vllm", "llama-cpp", "sglang", "torch", "mlx-lm", "tensorrt-llm"
+        ] = "torch",
+        wav2vec_attn_implementation: Optional[
+            Literal["sdpa", "flash_attention_2", "eager"]
+        ] = None,
+        llm_attn_implementation: Optional[
+            Literal["sdpa", "flash_attention_2", "eager"]
+        ] = None,
+        torch_dtype: Literal["float16", "bfloat16", "float32", "auto"] = "auto",
+        llm_gpu_memory_utilization: Optional[float] = 0.6,
+        cache_implementation: Optional[str] = None,
+        batch_size: int = 1,
+        llm_batch_size: int = 8,
+        wait_timeout: float = 0.01,
+        seed: int = 0,
+        **kwargs,
     ):
         engine_name = self._auto_detect_engine(model_path, snac_path)
 
@@ -80,7 +74,7 @@ class AutoEngine(Engine):
             seed=seed,
             **kwargs,
         )
-        if engine_name == 'spark':
+        if engine_name == "spark":
             from .spark_engine import AsyncSparkEngine
 
             engine_cls = AsyncSparkEngine
@@ -89,11 +83,11 @@ class AutoEngine(Engine):
                     "tokenizer_device": tokenizer_device,
                     "detokenizer_device": detokenizer_device,
                     "wav2vec_attn_implementation": wav2vec_attn_implementation,
-                    "wait_timeout": wait_timeout
+                    "wait_timeout": wait_timeout,
                 }
             )
 
-        elif engine_name == 'orpheus':
+        elif engine_name == "orpheus":
             from .orpheus_engine import AsyncOrpheusEngine
 
             engine_cls = AsyncOrpheusEngine
@@ -102,10 +96,10 @@ class AutoEngine(Engine):
                     "snac_path": snac_path,
                     "lang": lang,
                     "detokenizer_device": detokenizer_device,
-                    "wait_timeout": wait_timeout
+                    "wait_timeout": wait_timeout,
                 }
             )
-        elif engine_name == 'mega':
+        elif engine_name == "mega":
             from .mega_engine import AsyncMega3Engine
 
             engine_cls = AsyncMega3Engine
@@ -118,7 +112,8 @@ class AutoEngine(Engine):
             raise RuntimeError(f"Unknown engine '{engine_name}'")
         config_str = [f"{k}={v!r}" for k, v in engine_kwargs.items()]
         logger.info(
-            f"Initializing `AutoEngine(engine={engine_name})` with config: ({', '.join(config_str)})")
+            f"Initializing `AutoEngine(engine={engine_name})` with config: ({', '.join(config_str)})"
+        )
         self._engine = engine_cls(**engine_kwargs)
         self.SAMPLE_RATE = self._engine.SAMPLE_RATE
         self.engine_name = engine_name
@@ -168,20 +163,25 @@ class AutoEngine(Engine):
         return data
 
     async def speak_async(
-            self,
-            text: str,
-            name: Optional[str] = None,
-            pitch: Optional[Literal["very_low", "low", "moderate", "high", "very_high"]] = None,
-            speed: Optional[Literal["very_low", "low", "moderate", "high", "very_high"]] = None,
-            temperature: float = 0.9,
-            top_k: int = 50,
-            top_p: float = 0.95,
-            repetition_penalty: float = 1.0,
-            max_tokens: int = 4096,
-            length_threshold: int = 50,
-            window_size: int = 50,
-            split_fn: Optional[Callable[[str], list[str]]] = None,
-            **kwargs) -> np.ndarray:
+        self,
+        text: str,
+        name: Optional[str] = None,
+        pitch: Optional[
+            Literal["very_low", "low", "moderate", "high", "very_high"]
+        ] = None,
+        speed: Optional[
+            Literal["very_low", "low", "moderate", "high", "very_high"]
+        ] = None,
+        temperature: float = 0.9,
+        top_k: int = 50,
+        top_p: float = 0.95,
+        repetition_penalty: float = 1.0,
+        max_tokens: int = 4096,
+        length_threshold: int = 50,
+        window_size: int = 50,
+        split_fn: Optional[Callable[[str], list[str]]] = None,
+        **kwargs,
+    ) -> np.ndarray:
         if not self._SUPPORT_SPEAK:
             raise RuntimeError("Engine does not support speak")
         parameters = dict(
@@ -195,7 +195,7 @@ class AutoEngine(Engine):
             length_threshold=length_threshold,
             window_size=window_size,
             split_fn=split_fn,
-            **kwargs
+            **kwargs,
         )
         if self.engine_name == "spark":
             parameters.update(
@@ -210,20 +210,25 @@ class AutoEngine(Engine):
         return audio
 
     async def speak_stream_async(
-            self,
-            text: str,
-            name: Optional[str] = None,
-            pitch: Optional[Literal["very_low", "low", "moderate", "high", "very_high"]] = None,
-            speed: Optional[Literal["very_low", "low", "moderate", "high", "very_high"]] = None,
-            temperature: float = 0.9,
-            top_k: int = 50,
-            top_p: float = 0.95,
-            repetition_penalty: float = 1.0,
-            max_tokens: int = 4096,
-            length_threshold: int = 50,
-            window_size: int = 50,
-            split_fn: Optional[Callable[[str], list[str]]] = None,
-            **kwargs) -> AsyncIterator[np.ndarray]:
+        self,
+        text: str,
+        name: Optional[str] = None,
+        pitch: Optional[
+            Literal["very_low", "low", "moderate", "high", "very_high"]
+        ] = None,
+        speed: Optional[
+            Literal["very_low", "low", "moderate", "high", "very_high"]
+        ] = None,
+        temperature: float = 0.9,
+        top_k: int = 50,
+        top_p: float = 0.95,
+        repetition_penalty: float = 1.0,
+        max_tokens: int = 4096,
+        length_threshold: int = 50,
+        window_size: int = 50,
+        split_fn: Optional[Callable[[str], list[str]]] = None,
+        **kwargs,
+    ) -> AsyncIterator[np.ndarray]:
         if not self._SUPPORT_SPEAK:
             raise RuntimeError("Engine does not support speak")
         parameters = dict(
@@ -237,7 +242,7 @@ class AutoEngine(Engine):
             length_threshold=length_threshold,
             window_size=window_size,
             split_fn=split_fn,
-            **kwargs
+            **kwargs,
         )
         if self.engine_name == "spark":
             parameters.update(
@@ -246,27 +251,30 @@ class AutoEngine(Engine):
                     "speed": speed,
                 }
             )
-        async for chunk in self._engine.speak_stream_async(
-                **parameters
-        ):
+        async for chunk in self._engine.speak_stream_async(**parameters):
             yield chunk
 
     async def clone_voice_async(
-            self,
-            text: str,
-            reference_audio,
-            reference_text: Optional[str] = None,
-            pitch: Optional[Literal["very_low", "low", "moderate", "high", "very_high"]] = None,
-            speed: Optional[Literal["very_low", "low", "moderate", "high", "very_high"]] = None,
-            temperature: float = 0.9,
-            top_k: int = 50,
-            top_p: float = 0.95,
-            repetition_penalty: float = 1.0,
-            max_tokens: int = 4096,
-            length_threshold: int = 50,
-            window_size: int = 50,
-            split_fn: Optional[Callable[[str], list[str]]] = None,
-            **kwargs) -> np.ndarray:
+        self,
+        text: str,
+        reference_audio,
+        reference_text: Optional[str] = None,
+        pitch: Optional[
+            Literal["very_low", "low", "moderate", "high", "very_high"]
+        ] = None,
+        speed: Optional[
+            Literal["very_low", "low", "moderate", "high", "very_high"]
+        ] = None,
+        temperature: float = 0.9,
+        top_k: int = 50,
+        top_p: float = 0.95,
+        repetition_penalty: float = 1.0,
+        max_tokens: int = 4096,
+        length_threshold: int = 50,
+        window_size: int = 50,
+        split_fn: Optional[Callable[[str], list[str]]] = None,
+        **kwargs,
+    ) -> np.ndarray:
         if not self._SUPPORT_CLONE:
             raise RuntimeError("Engine does not support clone")
         parameters = dict(
@@ -281,7 +289,7 @@ class AutoEngine(Engine):
             length_threshold=length_threshold,
             window_size=window_size,
             split_fn=split_fn,
-            **kwargs
+            **kwargs,
         )
         if self.engine_name == "spark":
             parameters.update(
@@ -296,21 +304,26 @@ class AutoEngine(Engine):
         return audio
 
     async def clone_voice_stream_async(
-            self,
-            text: str,
-            reference_audio,
-            reference_text: Optional[str] = None,
-            pitch: Optional[Literal["very_low", "low", "moderate", "high", "very_high"]] = None,
-            speed: Optional[Literal["very_low", "low", "moderate", "high", "very_high"]] = None,
-            temperature: float = 0.9,
-            top_k: int = 50,
-            top_p: float = 0.95,
-            repetition_penalty: float = 1.0,
-            max_tokens: int = 4096,
-            length_threshold: int = 50,
-            window_size: int = 50,
-            split_fn: Optional[Callable[[str], list[str]]] = None,
-            **kwargs) -> AsyncIterator[np.ndarray]:
+        self,
+        text: str,
+        reference_audio,
+        reference_text: Optional[str] = None,
+        pitch: Optional[
+            Literal["very_low", "low", "moderate", "high", "very_high"]
+        ] = None,
+        speed: Optional[
+            Literal["very_low", "low", "moderate", "high", "very_high"]
+        ] = None,
+        temperature: float = 0.9,
+        top_k: int = 50,
+        top_p: float = 0.95,
+        repetition_penalty: float = 1.0,
+        max_tokens: int = 4096,
+        length_threshold: int = 50,
+        window_size: int = 50,
+        split_fn: Optional[Callable[[str], list[str]]] = None,
+        **kwargs,
+    ) -> AsyncIterator[np.ndarray]:
         if not self._SUPPORT_CLONE:
             raise RuntimeError("Engine does not support clone")
         parameters = dict(
@@ -325,7 +338,7 @@ class AutoEngine(Engine):
             length_threshold=length_threshold,
             window_size=window_size,
             split_fn=split_fn,
-            **kwargs
+            **kwargs,
         )
         if self.engine_name == "spark":
             parameters.update(
@@ -334,23 +347,21 @@ class AutoEngine(Engine):
                     "speed": speed,
                 }
             )
-        async for chunk in self._engine.clone_voice_stream_async(
-                **parameters
-        ):
+        async for chunk in self._engine.clone_voice_stream_async(**parameters):
             yield chunk
 
     async def multi_speak_async(
-            self,
-            text: str,
-            temperature: float = 0.9,
-            top_k: int = 50,
-            top_p: float = 0.95,
-            repetition_penalty: float = 1.0,
-            max_tokens: int = 4096,
-            length_threshold: int = 50,
-            window_size: int = 50,
-            split_fn: Optional[Callable[[str], list[str]]] = None,
-            **kwargs
+        self,
+        text: str,
+        temperature: float = 0.9,
+        top_k: int = 50,
+        top_p: float = 0.95,
+        repetition_penalty: float = 1.0,
+        max_tokens: int = 4096,
+        length_threshold: int = 50,
+        window_size: int = 50,
+        split_fn: Optional[Callable[[str], list[str]]] = None,
+        **kwargs,
     ) -> np.ndarray:
         audio = await self._engine.multi_speak_async(
             text=text,
@@ -362,33 +373,33 @@ class AutoEngine(Engine):
             length_threshold=length_threshold,
             window_size=window_size,
             split_fn=split_fn,
-            **kwargs
+            **kwargs,
         )
         return audio
 
     async def multi_speak_stream_async(
-            self,
-            text: str,
-            temperature: float = 0.9,
-            top_k: int = 50,
-            top_p: float = 0.95,
-            repetition_penalty: float = 1.0,
-            max_tokens: int = 4096,
-            length_threshold: int = 50,
-            window_size: int = 50,
-            split_fn: Optional[Callable[[str], list[str]]] = None,
-            **kwargs
+        self,
+        text: str,
+        temperature: float = 0.9,
+        top_k: int = 50,
+        top_p: float = 0.95,
+        repetition_penalty: float = 1.0,
+        max_tokens: int = 4096,
+        length_threshold: int = 50,
+        window_size: int = 50,
+        split_fn: Optional[Callable[[str], list[str]]] = None,
+        **kwargs,
     ) -> AsyncIterator[np.ndarray]:
         async for chunk in self._engine.multi_speak_stream_async(
-                text=text,
-                temperature=temperature,
-                top_k=top_k,
-                top_p=top_p,
-                repetition_penalty=repetition_penalty,
-                max_tokens=max_tokens,
-                length_threshold=length_threshold,
-                window_size=window_size,
-                split_fn=split_fn,
-                **kwargs
+            text=text,
+            temperature=temperature,
+            top_k=top_k,
+            top_p=top_p,
+            repetition_penalty=repetition_penalty,
+            max_tokens=max_tokens,
+            length_threshold=length_threshold,
+            window_size=window_size,
+            split_fn=split_fn,
+            **kwargs,
         ):
             yield chunk
